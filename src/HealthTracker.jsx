@@ -395,6 +395,18 @@ function PomodoroTimer({ onComplete, autoStart = false, soundEnabled = true, onT
     if (onTick) onTick(remaining, running);
   }, [remaining, running]);
 
+  // Browser tab title
+  useEffect(() => {
+    if (remaining > 0) {
+      const mm = String(Math.floor(remaining / 60)).padStart(2, "0");
+      const ss = String(remaining % 60).padStart(2, "0");
+      document.title = `${mm}:${ss} — ${intention || "Pomodoro"}`;
+    } else if (remaining === 0 && intention) {
+      document.title = `✓ ${intention} — Health System`;
+    }
+    return () => { document.title = "Health System"; };
+  }, [remaining, intention]);
+
   useEffect(() => {
     if (remaining === 0 && !soundPlayed.current && soundEnabled) {
       soundPlayed.current = true;
