@@ -24,6 +24,15 @@ db.exec(`
     rank_level INTEGER DEFAULT 1
   );
 
+  CREATE TABLE IF NOT EXISTS projects (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    color TEXT DEFAULT '#c44d2b',
+    client TEXT DEFAULT '',
+    active INTEGER DEFAULT 1,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+
   CREATE TABLE IF NOT EXISTS pomodoros (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     day_id INTEGER NOT NULL REFERENCES days(id),
@@ -31,6 +40,9 @@ db.exec(`
     pom_index INTEGER NOT NULL CHECK(pom_index BETWEEN 0 AND 3),
     intention TEXT NOT NULL,
     value_tags TEXT DEFAULT '',
+    project_id INTEGER REFERENCES projects(id),
+    biz_rating INTEGER,
+    energy_rating INTEGER,
     started_at TEXT DEFAULT (datetime('now')),
     completed_at TEXT
   );
@@ -55,14 +67,22 @@ db.exec(`
   );
 `);
 
-// --- Migrations ---
+// --- Migrations (for existing DBs) ---
 
-// Migrate business_value → value_tags if old schema exists
 try {
   const cols = db.pragma("table_info(pomodoros)").map((c) => c.name);
   if (cols.includes("business_value") && !cols.includes("value_tags")) {
     db.exec("ALTER TABLE pomodoros ADD COLUMN value_tags TEXT DEFAULT ''");
     db.exec("UPDATE pomodoros SET value_tags = CASE WHEN business_value = 1 THEN 'umsatz' ELSE '' END");
+  }
+  if (!cols.includes("project_id")) {
+    db.exec("ALTER TABLE pomodoros ADD COLUMN project_id INTEGER REFERENCES projects(id)");
+  }
+  if (!cols.includes("biz_rating")) {
+    db.exec("ALTER TABLE pomodoros ADD COLUMN biz_rating INTEGER");
+  }
+  if (!cols.includes("energy_rating")) {
+    db.exec("ALTER TABLE pomodoros ADD COLUMN energy_rating INTEGER");
   }
 } catch {}
 
@@ -86,26 +106,63 @@ function updateDayPoints(id, totalPoints, streakDay, rankLevel) {
   return stmtUpdateDayPoints.run(totalPoints, streakDay, rankLevel, id);
 }
 
+// --- Project operations ---
+
+const stmtCreateProject = db.prepare(
+  "INSERT INTO projects (name, color, client) VALUES (?, ?, ?)"
+);
+const stmtUpdateProject = db.prepare(
+  "UPDATE projects SET name = ?, color = ?, client = ?, active = ? WHERE id = ?"
+);
+const stmtGetActiveProjects = db.prepare(
+  "SELECT * FROM projects WHERE active = 1 ORDER BY name"
+);
+const stmtGetAllProjects = db.prepare("SELECT * FROM projects ORDER BY name");
+
+function createProject(name, color, client) {
+  const result = stmtCreateProject.run(name, color || "#c44d2b", client || "");
+  return result.lastInsertRowid;
+}
+
+function updateProject(id, name, color, client, active) {
+  return stmtUpdateProject.run(name, color, client, active ? 1 : 0, id);
+}
+
+function getActiveProjects() {
+  return stmtGetActiveProjects.all();
+}
+
+function getAllProjects() {
+  return stmtGetAllProjects.all();
+}
+
 // --- Pomodoro operations ---
 
 const stmtCreatePom = db.prepare(
-  "INSERT INTO pomodoros (day_id, block_index, pom_index, intention, value_tags) VALUES (?, ?, ?, ?, ?)"
+  "INSERT INTO pomodoros (day_id, block_index, pom_index, intention, value_tags, project_id) VALUES (?, ?, ?, ?, ?, ?)"
 );
 const stmtCompletePom = db.prepare(
   "UPDATE pomodoros SET completed_at = datetime('now') WHERE id = ?"
 );
+const stmtRatePom = db.prepare(
+  "UPDATE pomodoros SET biz_rating = ?, energy_rating = ? WHERE id = ?"
+);
 const stmtGetPomsByDay = db.prepare(
-  "SELECT * FROM pomodoros WHERE day_id = ? ORDER BY block_index, pom_index"
+  "SELECT p.*, pr.name AS project_name, pr.color AS project_color FROM pomodoros p LEFT JOIN projects pr ON p.project_id = pr.id WHERE p.day_id = ? ORDER BY p.block_index, p.pom_index"
 );
 
-function createPomodoro(dayId, blockIndex, pomIndex, intention, valueTags) {
+function createPomodoro(dayId, blockIndex, pomIndex, intention, valueTags, projectId) {
   const tags = Array.isArray(valueTags) ? valueTags.join(",") : (valueTags || "");
-  const result = stmtCreatePom.run(dayId, blockIndex, pomIndex, intention, tags);
+  const result = stmtCreatePom.run(dayId, blockIndex, pomIndex, intention, tags, projectId || null);
   return result.lastInsertRowid;
 }
 
 function completePomodoro(id) {
   return stmtCompletePom.run(id);
+}
+
+function ratePomodoro(id, bizRating, energyRating) {
+  return stmtRatePom.run(bizRating, energyRating, id);
 }
 
 function getPomodorosByDay(dayId) {
@@ -168,6 +225,7 @@ const stmtWeekSummary = db.prepare(`
     d.rank_level,
     COUNT(DISTINCT p.id) AS pom_count,
     SUM(CASE WHEN p.value_tags != '' AND p.value_tags IS NOT NULL THEN 1 ELSE 0 END) AS tagged_pom_count,
+    COALESCE(SUM(p.biz_rating), 0) AS biz_rating_sum,
     COUNT(DISTINCT m.id) AS move_count,
     COALESCE(SUM(m.duration_seconds), 0) AS move_seconds
   FROM days d
@@ -196,8 +254,13 @@ module.exports = {
   getDay,
   createDay,
   updateDayPoints,
+  createProject,
+  updateProject,
+  getActiveProjects,
+  getAllProjects,
   createPomodoro,
   completePomodoro,
+  ratePomodoro,
   getPomodorosByDay,
   createMovement,
   getMovementsByDay,

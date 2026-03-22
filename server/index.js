@@ -52,15 +52,42 @@ app.get("/api/today", (req, res) => {
   res.json({ day, pomodoros, movements, gamification });
 });
 
-// Save/complete a pomodoro
+// --- Projects ---
+
+app.get("/api/projects", (req, res) => {
+  const projects = req.query.all ? db.getAllProjects() : db.getActiveProjects();
+  res.json(projects);
+});
+
+app.post("/api/projects", (req, res) => {
+  const { name, color, client } = req.body;
+  if (!name) return res.status(400).json({ error: "name required" });
+  const id = db.createProject(name, color, client);
+  res.json({ id });
+});
+
+app.patch("/api/projects/:id", (req, res) => {
+  const { name, color, client, active } = req.body;
+  db.updateProject(req.params.id, name, color, client, active);
+  res.json({ ok: true });
+});
+
+// --- Pomodoros ---
+
 app.post("/api/pomodoros", (req, res) => {
-  const { day_id, block_index, pom_index, intention, value_tags } = req.body;
-  const id = db.createPomodoro(day_id, block_index, pom_index, intention, value_tags);
+  const { day_id, block_index, pom_index, intention, value_tags, project_id } = req.body;
+  const id = db.createPomodoro(day_id, block_index, pom_index, intention, value_tags, project_id);
   res.json({ id });
 });
 
 app.patch("/api/pomodoros/:id/complete", (req, res) => {
   db.completePomodoro(req.params.id);
+  res.json({ ok: true });
+});
+
+app.patch("/api/pomodoros/:id/rate", (req, res) => {
+  const { biz_rating, energy_rating } = req.body;
+  db.ratePomodoro(req.params.id, biz_rating, energy_rating);
   res.json({ ok: true });
 });
 

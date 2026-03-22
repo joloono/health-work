@@ -36,9 +36,10 @@ export function getRank(level) {
   return RANKS[clamped - 1];
 }
 
-// Points: 1 per pom, 2 per movement, +1 per biz-value pom
-export function calcDayPoints(pomCount, moveCount, bizPomCount) {
-  return pomCount + moveCount * 2 + bizPomCount;
+// Points: 1 per pom, 2 per movement, + sum of biz_ratings
+// Max: 16 + 20*2 + 64 = 120
+export function calcDayPoints(pomCount, moveCount, bizRatingSum) {
+  return pomCount + moveCount * 2 + bizRatingSum;
 }
 
 // Streak: day counts if at least 1 pom + 1 movement
@@ -47,10 +48,10 @@ export function dayCountsForStreak(pomCount, moveCount) {
 }
 
 // Level-up threshold: need 3 consecutive streak days with avg >= threshold
-// Progressive: base 20 pts/day, +2 per rank above 5
+// Progressive: base 40 pts/day, +3 per rank above 5 (scaled for max 120)
 export function getLevelUpThreshold(currentRank) {
-  if (currentRank <= 5) return 20;
-  return 20 + (currentRank - 5) * 2;
+  if (currentRank <= 5) return 40;
+  return 40 + (currentRank - 5) * 3;
 }
 
 // Calculate new rank based on gamification history

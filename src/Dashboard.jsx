@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { api } from "./api.js";
-import { getRank } from "./gamification.js";
 
 function btnStyle(bg, fg, size = "0.88rem") {
   return {
@@ -10,7 +9,6 @@ function btnStyle(bg, fg, size = "0.88rem") {
   };
 }
 
-// Simple bar chart using divs
 function BarChart({ data, maxValue, label, color = "var(--accent)", height = 120 }) {
   if (!data.length) return null;
   const max = maxValue || Math.max(...data.map((d) => d.value), 1);
@@ -40,12 +38,14 @@ function BarChart({ data, maxValue, label, color = "var(--accent)", height = 120
   );
 }
 
+const ENERGY_ICONS = { "-2": "🔴🔴", "-1": "🔴", "0": "⚪", "1": "🟢", "2": "🟢🟢" };
+const BIZ_LABELS = { 1: "gering", 2: "mittel", 3: "hoch", 4: "sehr hoch" };
+
 function Tageslog({ dayData }) {
   if (!dayData) return <div style={{ padding: "1rem", textAlign: "center", color: "var(--fg-dim)" }}>Keine Daten</div>;
 
   const { pomodoros, movements } = dayData;
 
-  // Merge and sort chronologically
   const events = [
     ...pomodoros.map((p) => ({
       type: "pomodoro",
@@ -53,7 +53,10 @@ function Tageslog({ dayData }) {
       block: p.block_index,
       pom: p.pom_index,
       intention: p.intention,
-      bizValue: !!p.business_value,
+      projectName: p.project_name,
+      projectColor: p.project_color,
+      bizRating: p.biz_rating,
+      energyRating: p.energy_rating,
       completed: !!p.completed_at,
     })),
     ...movements.map((m) => ({
@@ -86,10 +89,24 @@ function Tageslog({ dayData }) {
           </span>
           <div style={{ flex: 1 }}>
             {ev.type === "pomodoro" && (
-              <div>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.3rem", flexWrap: "wrap" }}>
                 <span style={{ fontWeight: 600 }}>Block {["I","II","III","IV"][ev.block]}.{ev.pom + 1}</span>
-                {" — "}{ev.intention}
-                {ev.bizValue && <span style={{ fontSize: "0.6rem", background: "var(--accent)", color: "#fff", borderRadius: 3, padding: "0 3px", marginLeft: 4 }}>$</span>}
+                {ev.projectName && (
+                  <span style={{ fontSize: "0.55rem", background: ev.projectColor || "var(--accent)", color: "#fff", borderRadius: 3, padding: "0 4px", fontWeight: 600 }}>
+                    {ev.projectName}
+                  </span>
+                )}
+                <span>{ev.intention}</span>
+                {ev.bizRating != null && (
+                  <span style={{ fontSize: "0.55rem", color: "var(--accent)", fontWeight: 600 }} title={`Geschäftswert: ${BIZ_LABELS[ev.bizRating]}`}>
+                    {"●".repeat(ev.bizRating)}
+                  </span>
+                )}
+                {ev.energyRating != null && (
+                  <span style={{ fontSize: "0.55rem" }} title={`Energie: ${ev.energyRating}`}>
+                    {ENERGY_ICONS[String(ev.energyRating)] || "⚪"}
+                  </span>
+                )}
               </div>
             )}
             {ev.type === "mini-move" && <div><span style={{ fontWeight: 600 }}>Mini-Move:</span> {ev.exercise}</div>}
@@ -100,6 +117,55 @@ function Tageslog({ dayData }) {
               {new Date(ev.time + "Z").toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit" })}
             </span>
           )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ProjektView({ dayData }) {
+  if (!dayData) return null;
+  const { pomodoros } = dayData;
+  const completed = pomodoros.filter((p) => p.completed_at);
+
+  // Group by project
+  const byProject = {};
+  for (const p of completed) {
+    const key = p.project_id || "none";
+    if (!byProject[key]) {
+      byProject[key] = { name: p.project_name || "Ohne Projekt", color: p.project_color || "var(--fg-dim)", poms: 0, bizSum: 0, energySum: 0 };
+    }
+    byProject[key].poms++;
+    byProject[key].bizSum += p.biz_rating || 0;
+    byProject[key].energySum += p.energy_rating || 0;
+  }
+
+  const projects = Object.values(byProject).sort((a, b) => b.poms - a.poms);
+
+  if (!projects.length) {
+    return (
+      <div style={{ padding: "2rem 1rem", textAlign: "center", color: "var(--fg-dim)", fontSize: "0.85rem" }}>
+        Noch keine abgeschlossenen Pomodoros heute.
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+      {projects.map((p, i) => (
+        <div key={i} style={{
+          padding: "0.6rem 0.8rem", background: "var(--card-bg)", borderRadius: 8,
+          border: "1px solid var(--border)", display: "flex", alignItems: "center", gap: "0.6rem",
+        }}>
+          <div style={{ width: 4, height: 36, borderRadius: 2, background: p.color, flexShrink: 0 }} />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 600, fontSize: "0.82rem" }}>{p.name}</div>
+            <div style={{ fontSize: "0.68rem", color: "var(--fg-dim)", display: "flex", gap: "0.8rem", marginTop: "0.15rem" }}>
+              <span>{p.poms} Pom{p.poms !== 1 ? "s" : ""} ({p.poms * 25} min)</span>
+              <span>Wert: {"●".repeat(Math.round(p.bizSum / p.poms)) || "–"}</span>
+              <span>Energie: {p.energySum > 0 ? "+" : ""}{p.energySum}</span>
+            </div>
+          </div>
         </div>
       ))}
     </div>
@@ -131,7 +197,7 @@ function Wochenüberblick({ weekData }) {
   }));
 
   const bizData = weekData.map((d) => ({
-    value: d.pom_count > 0 ? Math.round((d.tagged_pom_count / d.pom_count) * 100) : 0,
+    value: d.pom_count > 0 ? +(d.biz_rating_sum / d.pom_count).toFixed(1) : 0,
     label: dayNames[new Date(d.date).getDay()],
     isToday: d.date === today,
   }));
@@ -146,8 +212,8 @@ function Wochenüberblick({ weekData }) {
     <div>
       <BarChart data={pomData} maxValue={16} label="Pomodoros pro Tag" color="var(--accent)" />
       <BarChart data={moveData} maxValue={null} label="Bewegungsminuten pro Tag" color="var(--done)" />
-      <BarChart data={bizData} maxValue={100} label="Wert-getaggte Pomodoros (%)" color="var(--accent)" />
-      <BarChart data={pointsData} maxValue={64} label="Punkte pro Tag" color="var(--done)" />
+      <BarChart data={bizData} maxValue={4} label="Durchschn. Geschäftswert" color="var(--accent)" />
+      <BarChart data={pointsData} maxValue={120} label="Punkte pro Tag" color="var(--done)" />
     </div>
   );
 }
@@ -171,6 +237,12 @@ export default function Dashboard({ onBack, theme }) {
     })();
   }, []);
 
+  const tabs = [
+    { id: "tageslog", label: "Tageslog" },
+    { id: "projekte", label: "Projekte" },
+    { id: "woche", label: "Woche" },
+  ];
+
   return (
     <div style={{
       ...theme,
@@ -188,9 +260,9 @@ export default function Dashboard({ onBack, theme }) {
       </div>
 
       <div style={{ display: "flex", gap: "0.3rem", marginBottom: "1rem" }}>
-        {[{ id: "tageslog", label: "Tageslog" }, { id: "woche", label: "Wochenüberblick" }].map((t) => (
+        {tabs.map((t) => (
           <button key={t.id} onClick={() => setTab(t.id)} style={{
-            flex: 1, padding: "0.5rem", borderRadius: 8, fontSize: "0.78rem", fontWeight: 600,
+            flex: 1, padding: "0.5rem", borderRadius: 8, fontSize: "0.72rem", fontWeight: 600,
             fontFamily: "inherit", cursor: "pointer", transition: "all 0.15s ease",
             border: tab === t.id ? "2px solid var(--accent)" : "1px solid var(--border)",
             background: tab === t.id ? "rgba(196,77,43,0.08)" : "var(--card-bg)",
@@ -206,6 +278,7 @@ export default function Dashboard({ onBack, theme }) {
       ) : (
         <>
           {tab === "tageslog" && <Tageslog dayData={dayData} />}
+          {tab === "projekte" && <ProjektView dayData={dayData} />}
           {tab === "woche" && <Wochenüberblick weekData={weekData} />}
         </>
       )}

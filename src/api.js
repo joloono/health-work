@@ -29,21 +29,42 @@ export function getAuth() {
 export const api = {
   getToday: () => request("/api/today"),
 
-  createPomodoro: (dayId, blockIndex, pomIndex, intention, valueTags) =>
+  // Projects
+  getProjects: () => request("/api/projects"),
+
+  createProject: (name, color, client) =>
+    request("/api/projects", {
+      method: "POST",
+      body: JSON.stringify({ name, color, client }),
+    }),
+
+  updateProject: (id, data) =>
+    request(`/api/projects/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+
+  // Pomodoros
+  createPomodoro: (dayId, blockIndex, pomIndex, intention, valueTags, projectId) =>
     request("/api/pomodoros", {
       method: "POST",
-      body: JSON.stringify({ day_id: dayId, block_index: blockIndex, pom_index: pomIndex, intention, value_tags: valueTags }),
+      body: JSON.stringify({ day_id: dayId, block_index: blockIndex, pom_index: pomIndex, intention, value_tags: valueTags, project_id: projectId }),
     }),
 
   completePomodoro: (id) =>
     request(`/api/pomodoros/${id}/complete`, { method: "PATCH" }),
 
+  ratePomodoro: (id, bizRating, energyRating) =>
+    request(`/api/pomodoros/${id}/rate`, {
+      method: "PATCH",
+      body: JSON.stringify({ biz_rating: bizRating, energy_rating: energyRating }),
+    }),
+
+  // Movements
   createMovement: (dayId, blockIndex, type, exercise, durationSeconds) =>
     request("/api/movements", {
       method: "POST",
       body: JSON.stringify({ day_id: dayId, block_index: blockIndex, type, exercise, duration_seconds: durationSeconds }),
     }),
 
+  // Day points & gamification
   updateDayPoints: (dayId, totalPoints, streakDay, rankLevel) =>
     request(`/api/days/${dayId}/points`, {
       method: "PATCH",

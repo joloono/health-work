@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { api } from "./api.js";
-import { getRank, calcDayPoints, dayCountsForStreak, calculateRankChange, calculateLevelLoss } from "./gamification.js";
+import { getRank, calcDayPoints, dayCountsForStreak, calculateRankChange } from "./gamification.js";
 import { playNotificationSound } from "./useSettings.js";
 
 const QUICK_MOVES = [
@@ -29,6 +29,21 @@ const VALUE_TAGS = [
   { id: "systeme", label: "Systeme", icon: "⚙️" },
 ];
 
+const BIZ_LEVELS = [
+  { value: 1, label: "gering", icon: "◐" },
+  { value: 2, label: "mittel", icon: "●" },
+  { value: 3, label: "hoch", icon: "●●" },
+  { value: 4, label: "sehr hoch", icon: "●●●" },
+];
+
+const ENERGY_LEVELS = [
+  { value: -2, label: "drain", icon: "🔴🔴" },
+  { value: -1, label: "müde", icon: "🔴" },
+  { value: 0, label: "neutral", icon: "⚪" },
+  { value: 1, label: "gut", icon: "🟢" },
+  { value: 2, label: "Feuer", icon: "🟢🟢" },
+];
+
 function parseValueTags(raw) {
   if (!raw) return [];
   return raw.split(",").filter(Boolean);
@@ -41,7 +56,12 @@ function buildBlocksFromDB(pomodoros, movements) {
     intentions: [null, null, null, null],
     valueTags: [[], [], [], []],
     pomodoroIds: [null, null, null, null],
-    miniMoves: [null, null, null],
+    bizRatings: [null, null, null, null],
+    energyRatings: [null, null, null, null],
+    projectIds: [null, null, null, null],
+    projectNames: [null, null, null, null],
+    projectColors: [null, null, null, null],
+    miniMoves: [null, null, null, null],
     blockMove: null,
   }));
 
@@ -51,6 +71,11 @@ function buildBlocksFromDB(pomodoros, movements) {
       b.intentions[p.pom_index] = p.intention;
       b.valueTags[p.pom_index] = parseValueTags(p.value_tags);
       b.pomodoroIds[p.pom_index] = p.id;
+      b.bizRatings[p.pom_index] = p.biz_rating;
+      b.energyRatings[p.pom_index] = p.energy_rating;
+      b.projectIds[p.pom_index] = p.project_id;
+      b.projectNames[p.pom_index] = p.project_name || null;
+      b.projectColors[p.pom_index] = p.project_color || null;
       if (p.completed_at) b.pomodoros[p.pom_index] = true;
     }
   }
@@ -69,10 +94,12 @@ function buildBlocksFromDB(pomodoros, movements) {
   return blocks;
 }
 
+// New flow: [Pom → Rating → MiniMove] ×4 → BlockPause
 function getBlockStep(block) {
   for (let i = 0; i < 4; i++) {
     if (!block.pomodoros[i]) return { type: "pomodoro", index: i };
-    if (i < 3 && !block.miniMoves[i]) return { type: "miniMove", index: i };
+    if (block.bizRatings[i] == null) return { type: "rating", index: i };
+    if (!block.miniMoves[i]) return { type: "miniMove", index: i };
   }
   if (!block.blockMove) return { type: "blockMove" };
   return { type: "done" };
@@ -111,12 +138,10 @@ function PomodoroTimer({ onComplete, autoStart = false, soundEnabled = true, onT
     return () => clearInterval(ref.current);
   }, [running, remaining]);
 
-  // Report timer state upward for minibar
   useEffect(() => {
     if (onTick) onTick(remaining, running);
   }, [remaining, running]);
 
-  // Play sound when timer completes
   useEffect(() => {
     if (remaining === 0 && !soundPlayed.current && soundEnabled) {
       soundPlayed.current = true;
@@ -238,11 +263,83 @@ function BlockMovePicker({ onSelect, selected }) {
   );
 }
 
+function RatingStep({ intention, pomodoroId, onComplete }) {
+  const [biz, setBiz] = useState(null);
+  const [energy, setEnergy] = useState(null);
+
+  const handleSubmit = async () => {
+    if (biz == null || energy == null) return;
+    await api.ratePomodoro(pomodoroId, biz, energy);
+    onComplete();
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.7rem", padding: "0.8rem 0" }}>
+      <div style={{ fontSize: "0.78rem", fontWeight: 500, color: "var(--fg)", textAlign: "center", background: "var(--muted)", borderRadius: 6, padding: "0.3rem 0.6rem" }}>
+        ✓ {intention}
+      </div>
+
+      <div style={{ width: "100%", maxWidth: 340 }}>
+        <div style={{ fontSize: "0.68rem", fontWeight: 600, color: "var(--fg-dim)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.3rem" }}>
+          Geschäftswert
+        </div>
+        <div style={{ display: "flex", gap: "0.3rem" }}>
+          {BIZ_LEVELS.map((lvl) => (
+            <button key={lvl.value} onClick={() => setBiz(lvl.value)} style={{
+              flex: 1, padding: "0.4rem 0.2rem", borderRadius: 6, fontSize: "0.65rem", fontFamily: "inherit",
+              border: biz === lvl.value ? "2px solid var(--accent)" : "1px solid var(--border)",
+              background: biz === lvl.value ? "rgba(196,77,43,0.12)" : "transparent",
+              color: biz === lvl.value ? "var(--accent)" : "var(--fg-dim)",
+              cursor: "pointer", fontWeight: biz === lvl.value ? 700 : 400,
+              display: "flex", flexDirection: "column", alignItems: "center", gap: "2px",
+            }}>
+              <span style={{ fontSize: "0.8rem" }}>{lvl.icon}</span>
+              <span>{lvl.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ width: "100%", maxWidth: 340 }}>
+        <div style={{ fontSize: "0.68rem", fontWeight: 600, color: "var(--fg-dim)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.3rem" }}>
+          Energie-Bilanz
+        </div>
+        <div style={{ display: "flex", gap: "0.3rem" }}>
+          {ENERGY_LEVELS.map((lvl) => (
+            <button key={lvl.value} onClick={() => setEnergy(lvl.value)} style={{
+              flex: 1, padding: "0.4rem 0.2rem", borderRadius: 6, fontSize: "0.65rem", fontFamily: "inherit",
+              border: energy === lvl.value ? "2px solid var(--done)" : "1px solid var(--border)",
+              background: energy === lvl.value ? "rgba(45,138,78,0.12)" : "transparent",
+              color: energy === lvl.value ? "var(--done)" : "var(--fg-dim)",
+              cursor: "pointer", fontWeight: energy === lvl.value ? 700 : 400,
+              display: "flex", flexDirection: "column", alignItems: "center", gap: "2px",
+            }}>
+              <span style={{ fontSize: "0.8rem" }}>{lvl.icon}</span>
+              <span>{lvl.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <button
+        onClick={handleSubmit}
+        disabled={biz == null || energy == null}
+        style={{
+          ...btnStyle(biz != null && energy != null ? "var(--accent)" : "var(--muted)", biz != null && energy != null ? "#fff" : "var(--fg-dim)", "0.82rem"),
+          opacity: biz != null && energy != null ? 1 : 0.5,
+        }}
+      >
+        Weiter →
+      </button>
+    </div>
+  );
+}
+
 function StepIndicator({ block }) {
   const items = [];
   for (let i = 0; i < 4; i++) {
     items.push({ type: "p", done: block.pomodoros[i], label: i + 1 });
-    if (i < 3) items.push({ type: "m", done: !!block.miniMoves[i] });
+    items.push({ type: "m", done: !!block.miniMoves[i] });
   }
   items.push({ type: "b", done: !!block.blockMove });
 
@@ -252,11 +349,11 @@ function StepIndicator({ block }) {
         if (item.type === "p") {
           return (
             <div key={idx} style={{
-              width: 24, height: 24, borderRadius: "50%",
+              width: 22, height: 22, borderRadius: "50%",
               border: item.done ? "2px solid var(--done)" : "1px solid var(--border)",
               background: item.done ? "var(--done)" : "transparent",
               display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: "0.6rem", color: item.done ? "#fff" : "var(--fg-dim)", fontWeight: 600,
+              fontSize: "0.55rem", color: item.done ? "#fff" : "var(--fg-dim)", fontWeight: 600,
             }}>
               {item.done ? "✓" : item.label}
             </div>
@@ -265,10 +362,10 @@ function StepIndicator({ block }) {
         if (item.type === "m") {
           return (
             <div key={idx} style={{
-              width: 12, height: 12, borderRadius: 3,
+              width: 10, height: 10, borderRadius: 3,
               background: item.done ? "var(--accent)" : "var(--border)",
               display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: "0.45rem", color: item.done ? "#fff" : "transparent",
+              fontSize: "0.4rem", color: item.done ? "#fff" : "transparent",
             }}>
               {item.done ? "↑" : ""}
             </div>
@@ -276,11 +373,11 @@ function StepIndicator({ block }) {
         }
         return (
           <div key={idx} style={{
-            width: 18, height: 18, borderRadius: 4, marginLeft: 2,
+            width: 16, height: 16, borderRadius: 4, marginLeft: 2,
             border: item.done ? "2px solid var(--done)" : "1px dashed var(--border)",
             background: item.done ? "var(--done-bg)" : "transparent",
             display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: "0.55rem", color: item.done ? "var(--done)" : "var(--fg-dim)",
+            fontSize: "0.5rem", color: item.done ? "var(--done)" : "var(--fg-dim)",
           }}>
             {item.done ? "🚶" : "P"}
           </div>
@@ -290,21 +387,34 @@ function StepIndicator({ block }) {
   );
 }
 
-function BlockCard({ block, index, isActive, dayId, onUpdate, soundEnabled, onTimerTick }) {
+function BlockCard({ block, index, isActive, dayId, onUpdate, soundEnabled, onTimerTick, projects }) {
   const step = getBlockStep(block);
   const complete = step.type === "done";
   const [intentionDraft, setIntentionDraft] = useState("");
   const [selectedTags, setSelectedTags] = useState([]);
+  const [selectedProject, setSelectedProject] = useState(null);
+  const [newProjectName, setNewProjectName] = useState("");
+  const [showNewProject, setShowNewProject] = useState(false);
 
   const toggleTag = (tagId) => {
     setSelectedTags((prev) => prev.includes(tagId) ? prev.filter((t) => t !== tagId) : [...prev, tagId]);
   };
 
+  const handleCreateProject = async () => {
+    if (!newProjectName.trim()) return;
+    const result = await api.createProject(newProjectName.trim());
+    setSelectedProject(result.id);
+    setNewProjectName("");
+    setShowNewProject(false);
+    onUpdate();
+  };
+
   const handleSetIntention = async () => {
     if (!intentionDraft.trim()) return;
-    await api.createPomodoro(dayId, index, step.index, intentionDraft.trim(), selectedTags);
+    await api.createPomodoro(dayId, index, step.index, intentionDraft.trim(), selectedTags, selectedProject);
     setIntentionDraft("");
     setSelectedTags([]);
+    setSelectedProject(null);
     onUpdate();
   };
 
@@ -341,25 +451,42 @@ function BlockCard({ block, index, isActive, dayId, onUpdate, soundEnabled, onTi
 
       <StepIndicator block={block} />
 
+      {/* Logged intentions */}
       {block.intentions.some(Boolean) && (
         <div style={{ marginBottom: "0.5rem" }}>
           {block.intentions.map((intent, pi) => intent && (
             <div key={pi} style={{
               fontSize: "0.7rem", color: block.pomodoros[pi] ? "var(--done)" : "var(--fg-dim)",
-              padding: "0.15rem 0", display: "flex", alignItems: "center", gap: "0.3rem",
+              padding: "0.15rem 0", display: "flex", alignItems: "center", gap: "0.3rem", flexWrap: "wrap",
             }}>
               <span style={{ fontWeight: 600, minWidth: "1.2rem" }}>{pi + 1}.</span>
+              {block.projectNames[pi] && (
+                <span style={{ fontSize: "0.55rem", background: block.projectColors[pi] || "var(--accent)", color: "#fff", borderRadius: 3, padding: "0 4px", fontWeight: 600 }}>
+                  {block.projectNames[pi]}
+                </span>
+              )}
               <span style={{ textDecoration: block.pomodoros[pi] ? "line-through" : "none", opacity: block.pomodoros[pi] ? 0.6 : 1 }}>{intent}</span>
               {block.valueTags[pi]?.length > 0 && block.valueTags[pi].map((t) => {
                 const tag = VALUE_TAGS.find((v) => v.id === t);
                 return tag ? <span key={t} style={{ fontSize: "0.5rem" }} title={tag.label}>{tag.icon}</span> : null;
               })}
+              {block.bizRatings[pi] != null && (
+                <span style={{ fontSize: "0.5rem", color: "var(--accent)" }} title={`Geschäftswert: ${block.bizRatings[pi]}`}>
+                  {"●".repeat(block.bizRatings[pi])}
+                </span>
+              )}
+              {block.energyRatings[pi] != null && (
+                <span style={{ fontSize: "0.5rem" }}>
+                  {block.energyRatings[pi] >= 1 ? "🟢" : block.energyRatings[pi] <= -1 ? "🔴" : "⚪"}
+                </span>
+              )}
               {block.pomodoros[pi] && <span style={{ fontSize: "0.6rem" }}>✓</span>}
             </div>
           ))}
         </div>
       )}
 
+      {/* Intention + Timer step */}
       {isActive && step.type === "pomodoro" && (
         <div>
           <div style={{ fontSize: "0.72rem", color: "var(--fg-dim)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.15rem" }}>
@@ -371,6 +498,44 @@ function BlockCard({ block, index, isActive, dayId, onUpdate, soundEnabled, onTi
               <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--accent)", textAlign: "center" }}>
                 Was ist dein Fokus für diesen Pomodoro?
               </div>
+
+              {/* Project selector */}
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem", justifyContent: "center", maxWidth: 340 }}>
+                {projects.map((p) => (
+                  <button key={p.id} onClick={() => setSelectedProject(selectedProject === p.id ? null : p.id)} style={{
+                    padding: "0.25rem 0.5rem", borderRadius: 5, fontSize: "0.65rem", fontFamily: "inherit",
+                    border: selectedProject === p.id ? `2px solid ${p.color}` : "1px solid var(--border)",
+                    background: selectedProject === p.id ? `${p.color}18` : "transparent",
+                    color: selectedProject === p.id ? p.color : "var(--fg-dim)",
+                    cursor: "pointer", fontWeight: selectedProject === p.id ? 700 : 400,
+                  }}>
+                    {p.name}
+                  </button>
+                ))}
+                {!showNewProject ? (
+                  <button onClick={() => setShowNewProject(true)} style={{
+                    padding: "0.25rem 0.5rem", borderRadius: 5, fontSize: "0.65rem", fontFamily: "inherit",
+                    border: "1px dashed var(--border)", background: "transparent", color: "var(--fg-dim)",
+                    cursor: "pointer",
+                  }}>
+                    + Projekt
+                  </button>
+                ) : (
+                  <div style={{ display: "flex", gap: "0.2rem" }}>
+                    <input value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") handleCreateProject(); }}
+                      placeholder="Name..." style={{
+                        width: 100, padding: "0.2rem 0.4rem", fontSize: "0.65rem", fontFamily: "inherit",
+                        border: "1px solid var(--border)", borderRadius: 5, background: "var(--bg)", color: "var(--fg)",
+                      }} />
+                    <button onClick={handleCreateProject} style={{
+                      padding: "0.2rem 0.4rem", fontSize: "0.65rem", fontFamily: "inherit",
+                      border: "1px solid var(--accent)", borderRadius: 5, background: "var(--accent)", color: "#fff", cursor: "pointer",
+                    }}>✓</button>
+                  </div>
+                )}
+              </div>
+
               <input
                 type="text"
                 value={intentionDraft}
@@ -380,10 +545,11 @@ function BlockCard({ block, index, isActive, dayId, onUpdate, soundEnabled, onTi
                 style={{
                   width: "100%", maxWidth: 320, padding: "0.6rem 0.8rem",
                   border: "1px solid var(--border)", borderRadius: 8, fontSize: "0.85rem",
-                  fontFamily: "inherit", background: "var(--bg)", color: "var(--fg)",
-                  outline: "none",
+                  fontFamily: "inherit", background: "var(--bg)", color: "var(--fg)", outline: "none",
                 }}
               />
+
+              {/* Value tags */}
               <div style={{ display: "flex", flexWrap: "wrap", gap: "0.3rem", justifyContent: "center", maxWidth: 340 }}>
                 {VALUE_TAGS.map((tag) => {
                   const active = selectedTags.includes(tag.id);
@@ -392,10 +558,9 @@ function BlockCard({ block, index, isActive, dayId, onUpdate, soundEnabled, onTi
                       display: "flex", alignItems: "center", gap: "0.25rem",
                       padding: "0.3rem 0.55rem", borderRadius: 6, fontSize: "0.68rem", fontFamily: "inherit",
                       border: active ? "2px solid var(--accent)" : "1px solid var(--border)",
-                      background: active ? "rgba(196, 77, 43, 0.1)" : "transparent",
+                      background: active ? "rgba(196,77,43,0.1)" : "transparent",
                       color: active ? "var(--accent)" : "var(--fg-dim)",
                       cursor: "pointer", fontWeight: active ? 600 : 400,
-                      transition: "all 0.15s ease",
                     }}>
                       <span style={{ fontSize: "0.8rem" }}>{tag.icon}</span>
                       {tag.label}
@@ -403,14 +568,11 @@ function BlockCard({ block, index, isActive, dayId, onUpdate, soundEnabled, onTi
                   );
                 })}
               </div>
-              <button
-                onClick={handleSetIntention}
-                disabled={!intentionDraft.trim()}
-                style={{
-                  ...btnStyle(intentionDraft.trim() ? "var(--accent)" : "var(--muted)", intentionDraft.trim() ? "#fff" : "var(--fg-dim)", "0.82rem"),
-                  opacity: intentionDraft.trim() ? 1 : 0.5,
-                }}
-              >
+
+              <button onClick={handleSetIntention} disabled={!intentionDraft.trim()} style={{
+                ...btnStyle(intentionDraft.trim() ? "var(--accent)" : "var(--muted)", intentionDraft.trim() ? "#fff" : "var(--fg-dim)", "0.82rem"),
+                opacity: intentionDraft.trim() ? 1 : 0.5,
+              }}>
                 Fokus setzen →
               </button>
             </div>
@@ -422,10 +584,6 @@ function BlockCard({ block, index, isActive, dayId, onUpdate, soundEnabled, onTi
                 display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem",
               }}>
                 🎯 {block.intentions[step.index]}
-                {block.valueTags[step.index]?.map((t) => {
-                  const tag = VALUE_TAGS.find((v) => v.id === t);
-                  return tag ? <span key={t} style={{ fontSize: "0.55rem" }} title={tag.label}>{tag.icon}</span> : null;
-                })}
               </div>
               <PomodoroTimer key={`${index}-${step.index}`} onComplete={handlePomComplete} autoStart soundEnabled={soundEnabled} onTick={(secs, running) => onTimerTick && onTimerTick(secs, running, block.intentions[step.index])} />
             </div>
@@ -433,6 +591,16 @@ function BlockCard({ block, index, isActive, dayId, onUpdate, soundEnabled, onTi
         </div>
       )}
 
+      {/* Rating step (after pom, before mini-move) */}
+      {isActive && step.type === "rating" && (
+        <RatingStep
+          intention={block.intentions[step.index]}
+          pomodoroId={block.pomodoroIds[step.index]}
+          onComplete={onUpdate}
+        />
+      )}
+
+      {/* Mini-move step */}
       {isActive && step.type === "miniMove" && (
         <div>
           <div style={{
@@ -445,6 +613,7 @@ function BlockCard({ block, index, isActive, dayId, onUpdate, soundEnabled, onTi
         </div>
       )}
 
+      {/* Block pause step */}
       {isActive && step.type === "blockMove" && (
         <div style={{ borderTop: "1px solid var(--border)", paddingTop: "0.5rem" }}>
           <div style={{ fontSize: "0.82rem", fontWeight: 700, color: "var(--done)", marginBottom: "0.25rem", textAlign: "center" }}>
@@ -470,13 +639,15 @@ export default function HealthTracker({ onDashboard, theme, settings, onSettings
   const [blocks, setBlocks] = useState(null);
   const [loading, setLoading] = useState(true);
   const [gamification, setGamification] = useState(null);
-  const [timerInfo, setTimerInfo] = useState(null); // { seconds, running, intention }
+  const [timerInfo, setTimerInfo] = useState(null);
+  const [projects, setProjects] = useState([]);
 
   const loadData = useCallback(async () => {
     try {
-      const [data, gamHistory] = await Promise.all([
+      const [data, gamHistory, projs] = await Promise.all([
         api.getToday(),
         api.getGamificationHistory(7),
+        api.getProjects(),
       ]);
       setDayData(data);
       setBlocks(buildBlocksFromDB(data.pomodoros || [], data.movements || []));
@@ -484,6 +655,7 @@ export default function HealthTracker({ onDashboard, theme, settings, onSettings
         current: data.gamification || { current_rank: 1, streak_length: 0, cumulative_points: 0 },
         history: gamHistory || [],
       });
+      setProjects(projs || []);
     } catch (e) {
       console.error("Failed to load:", e);
     }
@@ -492,7 +664,6 @@ export default function HealthTracker({ onDashboard, theme, settings, onSettings
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Persist gamification when points change
   const persistGamification = useCallback(async (pts, pomCount, moveCount) => {
     if (!dayData || !gamification) return;
     const today = new Date().toISOString().slice(0, 10);
@@ -501,11 +672,8 @@ export default function HealthTracker({ onDashboard, theme, settings, onSettings
       ? (prev.streak_length || 0) + (prev.date === today ? 0 : 1) || 1
       : prev.streak_length || 0;
     const cumPts = (prev.cumulative_points || 0) + pts - (dayData.day.total_points || 0);
-
-    // Check for level up
     const recentPoints = gamification.history.map((h) => h.cumulative_points);
     const { newRank, change } = calculateRankChange(prev.current_rank || 1, streak, [pts, ...recentPoints]);
-
     await Promise.all([
       api.updateDayPoints(dayData.day.id, pts, streak, newRank),
       api.upsertGamification({ date: today, cumulative_points: cumPts, current_rank: newRank, streak_length: streak, level_change: change }),
@@ -518,9 +686,9 @@ export default function HealthTracker({ onDashboard, theme, settings, onSettings
   const totalPom = blocks.reduce((s, b) => s + b.pomodoros.filter(Boolean).length, 0);
   const totalMini = blocks.reduce((s, b) => s + b.miniMoves.filter(Boolean).length, 0);
   const totalBlock = blocks.filter((b) => b.blockMove).length;
-  const totalTagged = blocks.reduce((s, b) => s + b.valueTags.filter((tags, i) => tags.length > 0 && b.pomodoros[i]).length, 0);
+  const totalBizRating = blocks.reduce((s, b) => s + b.bizRatings.reduce((sum, r) => sum + (r || 0), 0), 0);
   const allDone = activeBlock === -1;
-  const points = calcDayPoints(totalPom, totalMini + totalBlock, totalTagged);
+  const points = calcDayPoints(totalPom, totalMini + totalBlock, totalBizRating);
 
   const currentRank = gamification?.current?.current_rank || 1;
   const streak = gamification?.current?.streak_length || 0;
@@ -542,23 +710,13 @@ export default function HealthTracker({ onDashboard, theme, settings, onSettings
             {new Date().toLocaleDateString("de-CH", { weekday: "long", day: "numeric", month: "long" })}
           </p>
         </div>
-        {/* Timer minibar top-right */}
         {timerInfo && timerInfo.seconds > 0 && (
-          <div style={{
-            position: "absolute", right: 0, top: 0,
-            display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "2px",
-          }}>
-            <div style={{
-              fontFamily: "'JetBrains Mono', monospace", fontSize: "0.9rem", fontWeight: 700,
-              color: timerInfo.running ? "var(--accent)" : "var(--fg-dim)",
-            }}>
+          <div style={{ position: "absolute", right: 0, top: 0, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "2px" }}>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "0.9rem", fontWeight: 700, color: timerInfo.running ? "var(--accent)" : "var(--fg-dim)" }}>
               {String(Math.floor(timerInfo.seconds / 60)).padStart(2, "0")}:{String(timerInfo.seconds % 60).padStart(2, "0")}
             </div>
             {timerInfo.intention && (
-              <div style={{
-                fontSize: "0.55rem", color: "var(--fg-dim)", maxWidth: 100,
-                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "right",
-              }}>
+              <div style={{ fontSize: "0.55rem", color: "var(--fg-dim)", maxWidth: 100, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "right" }}>
                 {timerInfo.intention}
               </div>
             )}
@@ -566,7 +724,7 @@ export default function HealthTracker({ onDashboard, theme, settings, onSettings
         )}
       </div>
 
-      {/* Rank & Streak display */}
+      {/* Rank & Streak */}
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "center", gap: "1rem",
         padding: "0.5rem 0.8rem", marginBottom: "0.7rem",
@@ -585,13 +743,14 @@ export default function HealthTracker({ onDashboard, theme, settings, onSettings
         </div>
       </div>
 
+      {/* Counters */}
       <div style={{ display: "flex", justifyContent: "center", gap: "1.2rem", padding: "0.5rem 0 0.7rem", marginBottom: "0.7rem", borderBottom: "1px solid var(--border)" }}>
         <div style={{ textAlign: "center" }}>
           <div style={{ fontSize: "1.3rem", fontWeight: 700, color: totalPom > 0 ? "var(--accent)" : "var(--fg-dim)" }}>{totalPom}/16</div>
           <div style={{ fontSize: "0.62rem", color: "var(--fg-dim)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Pomodoros</div>
         </div>
         <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: "1.3rem", fontWeight: 700, color: totalMini > 0 ? "var(--accent)" : "var(--fg-dim)" }}>{totalMini}/12</div>
+          <div style={{ fontSize: "1.3rem", fontWeight: 700, color: totalMini > 0 ? "var(--accent)" : "var(--fg-dim)" }}>{totalMini}/16</div>
           <div style={{ fontSize: "0.62rem", color: "var(--fg-dim)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Mini-Moves</div>
         </div>
         <div style={{ textAlign: "center" }}>
@@ -608,7 +767,7 @@ export default function HealthTracker({ onDashboard, theme, settings, onSettings
         background: "var(--muted)", borderRadius: 8, padding: "0.55rem 0.8rem", marginBottom: "0.9rem",
         fontSize: "0.72rem", color: "var(--fg-dim)", fontWeight: 500, textAlign: "center", fontStyle: "italic",
       }}>
-        Fokus setzen → Pomodoro → Bewegung (1 min+) → Fokus setzen → … → grosse Pause
+        Fokus → Pomodoro → Bewertung → Bewegung → … → grosse Pause
       </div>
 
       {allDone && (
@@ -616,7 +775,7 @@ export default function HealthTracker({ onDashboard, theme, settings, onSettings
           background: "var(--done)", color: "#fff", borderRadius: 10, padding: "1rem",
           textAlign: "center", marginBottom: "0.9rem", fontSize: "0.92rem", fontWeight: 600,
         }}>
-          🎯 Tag geschafft. 16 Pomodoros, 12 Mini-Moves, 4 Pausen. Feierabend.
+          🎯 Tag geschafft. 16 Pomodoros, 16 Mini-Moves, 4 Pausen. Feierabend.
         </div>
       )}
 
@@ -631,11 +790,12 @@ export default function HealthTracker({ onDashboard, theme, settings, onSettings
             onUpdate={loadData}
             soundEnabled={settings?.soundEnabled}
             onTimerTick={(secs, running, intention) => setTimerInfo({ seconds: secs, running, intention })}
+            projects={projects}
           />
         ))}
       </div>
 
-      {/* Footer: Dashboard + Settings */}
+      {/* Footer */}
       <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "0.5rem", marginTop: "1.2rem", flexWrap: "wrap" }}>
         <button onClick={onDashboard} style={{
           background: "transparent", border: "1px solid var(--border)", borderRadius: 8,
