@@ -44,9 +44,221 @@ const ENERGY_LEVELS = [
   { value: 2, label: "Feuer", icon: "🟢🟢" },
 ];
 
+const GAP_THRESHOLD_MIN = 30;
+
 function parseValueTags(raw) {
   if (!raw) return [];
   return raw.split(",").filter(Boolean);
+}
+
+function GapAudit({ gapMinutes, lastTime, dayId, projects, onComplete }) {
+  const pomCount = Math.floor(gapMinutes / 25);
+  const [mode, setMode] = useState("quick"); // "quick" or "granular"
+  const [intention, setIntention] = useState("");
+  const [selectedProject, setSelectedProject] = useState(null);
+  const [biz, setBiz] = useState(null);
+  const [energy, setEnergy] = useState(null);
+  const [entries, setEntries] = useState(() =>
+    Array.from({ length: pomCount }, (_, i) => ({ intention: "", project: null, biz: null, energy: null }))
+  );
+  const [submitting, setSubmitting] = useState(false);
+
+  const hours = Math.floor(gapMinutes / 60);
+  const mins = gapMinutes % 60;
+  const gapLabel = hours > 0 ? `${hours}h ${mins}min` : `${mins}min`;
+
+  const handleSubmitQuick = async () => {
+    if (!intention.trim() || biz == null || energy == null) return;
+    setSubmitting(true);
+    const lastDate = new Date(lastTime + "Z");
+    const retros = Array.from({ length: pomCount }, (_, i) => {
+      const start = new Date(lastDate.getTime() + i * 25 * 60 * 1000);
+      const end = new Date(start.getTime() + 25 * 60 * 1000);
+      return {
+        day_id: dayId, block_index: 0, pom_index: 0,
+        intention: intention.trim(), project_id: selectedProject,
+        biz_rating: biz, energy_rating: energy, value_tags: [],
+        started_at: start.toISOString().replace("T", " ").slice(0, 19),
+        completed_at: end.toISOString().replace("T", " ").slice(0, 19),
+      };
+    });
+    await api.createRetroPomodoros(retros);
+    setSubmitting(false);
+    onComplete();
+  };
+
+  const handleSubmitGranular = async () => {
+    const valid = entries.every((e) => e.intention.trim() && e.biz != null && e.energy != null);
+    if (!valid) return;
+    setSubmitting(true);
+    const lastDate = new Date(lastTime + "Z");
+    const retros = entries.map((e, i) => {
+      const start = new Date(lastDate.getTime() + i * 25 * 60 * 1000);
+      const end = new Date(start.getTime() + 25 * 60 * 1000);
+      return {
+        day_id: dayId, block_index: 0, pom_index: 0,
+        intention: e.intention.trim(), project_id: e.project,
+        biz_rating: e.biz, energy_rating: e.energy, value_tags: [],
+        started_at: start.toISOString().replace("T", " ").slice(0, 19),
+        completed_at: end.toISOString().replace("T", " ").slice(0, 19),
+      };
+    });
+    await api.createRetroPomodoros(retros);
+    setSubmitting(false);
+    onComplete();
+  };
+
+  const updateEntry = (idx, patch) => {
+    setEntries((prev) => prev.map((e, i) => i === idx ? { ...e, ...patch } : e));
+  };
+
+  const canSubmitQuick = intention.trim() && biz != null && energy != null;
+  const canSubmitGranular = entries.every((e) => e.intention.trim() && e.biz != null && e.energy != null);
+
+  return (
+    <div style={{
+      border: "2px solid var(--accent)", borderRadius: 12, padding: "1rem",
+      background: "var(--card-bg)", marginBottom: "1rem",
+    }}>
+      <div style={{ textAlign: "center", marginBottom: "0.8rem" }}>
+        <div style={{ fontSize: "0.7rem", color: "var(--accent)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+          Lücke erkannt
+        </div>
+        <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "1.2rem", fontWeight: 700, margin: "0.2rem 0" }}>
+          {gapLabel} ungeloggt
+        </div>
+        <div style={{ fontSize: "0.72rem", color: "var(--fg-dim)" }}>
+          Das sind ~{pomCount} Pomodoro{pomCount !== 1 ? "s" : ""}. Was hast du gemacht?
+        </div>
+      </div>
+
+      {/* Mode toggle */}
+      <div style={{ display: "flex", gap: "0.3rem", marginBottom: "0.8rem" }}>
+        <button onClick={() => setMode("quick")} style={{
+          flex: 1, padding: "0.35rem", borderRadius: 6, fontSize: "0.68rem", fontWeight: 600, fontFamily: "inherit", cursor: "pointer",
+          border: mode === "quick" ? "2px solid var(--accent)" : "1px solid var(--border)",
+          background: mode === "quick" ? "rgba(196,77,43,0.08)" : "transparent",
+          color: mode === "quick" ? "var(--accent)" : "var(--fg-dim)",
+        }}>
+          Alle gleich
+        </button>
+        <button onClick={() => setMode("granular")} style={{
+          flex: 1, padding: "0.35rem", borderRadius: 6, fontSize: "0.68rem", fontWeight: 600, fontFamily: "inherit", cursor: "pointer",
+          border: mode === "granular" ? "2px solid var(--accent)" : "1px solid var(--border)",
+          background: mode === "granular" ? "rgba(196,77,43,0.08)" : "transparent",
+          color: mode === "granular" ? "var(--accent)" : "var(--fg-dim)",
+        }}>
+          Einzeln aufteilen
+        </button>
+      </div>
+
+      {mode === "quick" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+          {/* Project */}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.2rem" }}>
+            {projects.map((p) => (
+              <button key={p.id} onClick={() => setSelectedProject(selectedProject === p.id ? null : p.id)} style={{
+                padding: "0.2rem 0.4rem", borderRadius: 4, fontSize: "0.6rem", fontFamily: "inherit", cursor: "pointer",
+                border: selectedProject === p.id ? `2px solid ${p.color}` : "1px solid var(--border)",
+                background: selectedProject === p.id ? `${p.color}18` : "transparent",
+                color: selectedProject === p.id ? p.color : "var(--fg-dim)", fontWeight: selectedProject === p.id ? 700 : 400,
+              }}>{p.name}</button>
+            ))}
+          </div>
+          <input value={intention} onChange={(e) => setIntention(e.target.value)} placeholder="Was hast du gemacht?"
+            style={{ width: "100%", padding: "0.5rem 0.7rem", border: "1px solid var(--border)", borderRadius: 6, fontSize: "0.8rem", fontFamily: "inherit", background: "var(--bg)", color: "var(--fg)", outline: "none" }} />
+          {/* Biz rating */}
+          <div style={{ display: "flex", gap: "0.25rem" }}>
+            {BIZ_LEVELS.map((lvl) => (
+              <button key={lvl.value} onClick={() => setBiz(lvl.value)} style={{
+                flex: 1, padding: "0.3rem", borderRadius: 5, fontSize: "0.6rem", fontFamily: "inherit", cursor: "pointer",
+                border: biz === lvl.value ? "2px solid var(--accent)" : "1px solid var(--border)",
+                background: biz === lvl.value ? "rgba(196,77,43,0.1)" : "transparent",
+                color: biz === lvl.value ? "var(--accent)" : "var(--fg-dim)", fontWeight: biz === lvl.value ? 700 : 400,
+                display: "flex", flexDirection: "column", alignItems: "center", gap: "1px",
+              }}><span>{lvl.icon}</span><span>{lvl.label}</span></button>
+            ))}
+          </div>
+          {/* Energy */}
+          <div style={{ display: "flex", gap: "0.25rem" }}>
+            {ENERGY_LEVELS.map((lvl) => (
+              <button key={lvl.value} onClick={() => setEnergy(lvl.value)} style={{
+                flex: 1, padding: "0.3rem", borderRadius: 5, fontSize: "0.6rem", fontFamily: "inherit", cursor: "pointer",
+                border: energy === lvl.value ? "2px solid var(--done)" : "1px solid var(--border)",
+                background: energy === lvl.value ? "rgba(45,138,78,0.1)" : "transparent",
+                color: energy === lvl.value ? "var(--done)" : "var(--fg-dim)", fontWeight: energy === lvl.value ? 700 : 400,
+                display: "flex", flexDirection: "column", alignItems: "center", gap: "1px",
+              }}><span>{lvl.icon}</span><span>{lvl.label}</span></button>
+            ))}
+          </div>
+          <button onClick={handleSubmitQuick} disabled={!canSubmitQuick || submitting} style={{
+            ...btnStyle(canSubmitQuick ? "var(--accent)" : "var(--muted)", canSubmitQuick ? "#fff" : "var(--fg-dim)", "0.78rem"),
+            opacity: canSubmitQuick ? 1 : 0.5, width: "100%",
+          }}>
+            {pomCount} Retro-Pomodoro{pomCount !== 1 ? "s" : ""} loggen →
+          </button>
+        </div>
+      )}
+
+      {mode === "granular" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+          {entries.map((e, i) => (
+            <div key={i} style={{ padding: "0.5rem", border: "1px solid var(--border)", borderRadius: 8, background: "var(--bg)" }}>
+              <div style={{ fontSize: "0.6rem", color: "var(--fg-dim)", fontWeight: 600, marginBottom: "0.3rem" }}>
+                Pomodoro {i + 1}/{pomCount}
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.2rem", marginBottom: "0.3rem" }}>
+                {projects.map((p) => (
+                  <button key={p.id} onClick={() => updateEntry(i, { project: e.project === p.id ? null : p.id })} style={{
+                    padding: "0.15rem 0.35rem", borderRadius: 3, fontSize: "0.55rem", fontFamily: "inherit", cursor: "pointer",
+                    border: e.project === p.id ? `2px solid ${p.color}` : "1px solid var(--border)",
+                    background: e.project === p.id ? `${p.color}18` : "transparent",
+                    color: e.project === p.id ? p.color : "var(--fg-dim)",
+                  }}>{p.name}</button>
+                ))}
+              </div>
+              <input value={e.intention} onChange={(ev) => updateEntry(i, { intention: ev.target.value })} placeholder="Was?"
+                style={{ width: "100%", padding: "0.35rem 0.5rem", border: "1px solid var(--border)", borderRadius: 5, fontSize: "0.72rem", fontFamily: "inherit", background: "var(--card-bg)", color: "var(--fg)", outline: "none", marginBottom: "0.3rem" }} />
+              <div style={{ display: "flex", gap: "0.2rem", marginBottom: "0.2rem" }}>
+                {BIZ_LEVELS.map((lvl) => (
+                  <button key={lvl.value} onClick={() => updateEntry(i, { biz: lvl.value })} style={{
+                    flex: 1, padding: "0.2rem", borderRadius: 4, fontSize: "0.5rem", fontFamily: "inherit", cursor: "pointer",
+                    border: e.biz === lvl.value ? "2px solid var(--accent)" : "1px solid var(--border)",
+                    background: e.biz === lvl.value ? "rgba(196,77,43,0.1)" : "transparent",
+                    color: e.biz === lvl.value ? "var(--accent)" : "var(--fg-dim)",
+                  }}>{lvl.icon}</button>
+                ))}
+              </div>
+              <div style={{ display: "flex", gap: "0.2rem" }}>
+                {ENERGY_LEVELS.map((lvl) => (
+                  <button key={lvl.value} onClick={() => updateEntry(i, { energy: lvl.value })} style={{
+                    flex: 1, padding: "0.2rem", borderRadius: 4, fontSize: "0.5rem", fontFamily: "inherit", cursor: "pointer",
+                    border: e.energy === lvl.value ? "2px solid var(--done)" : "1px solid var(--border)",
+                    background: e.energy === lvl.value ? "rgba(45,138,78,0.1)" : "transparent",
+                    color: e.energy === lvl.value ? "var(--done)" : "var(--fg-dim)",
+                  }}>{lvl.icon}</button>
+                ))}
+              </div>
+            </div>
+          ))}
+          <button onClick={handleSubmitGranular} disabled={!canSubmitGranular || submitting} style={{
+            ...btnStyle(canSubmitGranular ? "var(--accent)" : "var(--muted)", canSubmitGranular ? "#fff" : "var(--fg-dim)", "0.78rem"),
+            opacity: canSubmitGranular ? 1 : 0.5, width: "100%",
+          }}>
+            {pomCount} Retro-Pomodoros loggen →
+          </button>
+        </div>
+      )}
+
+      {/* Skip option */}
+      <button onClick={onComplete} style={{
+        background: "transparent", border: "none", fontSize: "0.65rem", color: "var(--fg-dim)",
+        cursor: "pointer", fontFamily: "inherit", marginTop: "0.5rem", width: "100%", textAlign: "center",
+      }}>
+        Überspringen
+      </button>
+    </div>
+  );
 }
 
 // Rebuild block state from DB records
@@ -119,24 +331,65 @@ function TimerDisplay({ seconds, size = "3rem" }) {
   );
 }
 
-function PomodoroTimer({ onComplete, autoStart = false, soundEnabled = true, onTick }) {
-  const WORK = 25 * 60;
-  const [remaining, setRemaining] = useState(WORK);
-  const [running, setRunning] = useState(autoStart);
+const TIMER_KEY = "health-active-timer";
+const WORK = 25 * 60;
+
+function saveTimer(data) {
+  if (data) localStorage.setItem(TIMER_KEY, JSON.stringify(data));
+  else localStorage.removeItem(TIMER_KEY);
+}
+
+function loadTimer() {
+  try { return JSON.parse(localStorage.getItem(TIMER_KEY)); } catch { return null; }
+}
+
+function PomodoroTimer({ onComplete, autoStart = false, soundEnabled = true, onTick, intention, timerKey }) {
+  const saved = loadTimer();
+  const isResume = saved && saved.key === timerKey;
+
+  const [endTime, setEndTime] = useState(() => {
+    if (isResume && saved.endTime && !saved.paused) return saved.endTime;
+    if (isResume && saved.paused) return null;
+    return null;
+  });
+  const [pauseRemaining, setPauseRemaining] = useState(() => {
+    if (isResume && saved.paused) return saved.pauseRemaining;
+    return WORK;
+  });
+  const [running, setRunning] = useState(() => isResume && !saved.paused && saved.endTime > Date.now());
+  const [remaining, setRemaining] = useState(() => {
+    if (isResume && saved.endTime && !saved.paused) return Math.max(0, Math.ceil((saved.endTime - Date.now()) / 1000));
+    if (isResume && saved.paused) return saved.pauseRemaining;
+    return WORK;
+  });
   const ref = useRef(null);
   const soundPlayed = useRef(false);
 
+  // Auto-start on mount if requested and not resuming
   useEffect(() => {
-    if (running && remaining > 0) {
+    if (autoStart && !isResume && !endTime) {
+      const et = Date.now() + WORK * 1000;
+      setEndTime(et);
+      setRunning(true);
+      saveTimer({ key: timerKey, endTime: et, paused: false, pauseRemaining: 0, intention });
+    }
+  }, []);
+
+  // Tick: compute remaining from endTime
+  useEffect(() => {
+    if (running && endTime) {
       ref.current = setInterval(() => {
-        setRemaining((r) => {
-          if (r <= 1) { clearInterval(ref.current); setRunning(false); return 0; }
-          return r - 1;
-        });
-      }, 1000);
+        const left = Math.max(0, Math.ceil((endTime - Date.now()) / 1000));
+        setRemaining(left);
+        if (left <= 0) {
+          clearInterval(ref.current);
+          setRunning(false);
+          saveTimer(null);
+        }
+      }, 250);
     }
     return () => clearInterval(ref.current);
-  }, [running, remaining]);
+  }, [running, endTime]);
 
   useEffect(() => {
     if (onTick) onTick(remaining, running);
@@ -149,36 +402,83 @@ function PomodoroTimer({ onComplete, autoStart = false, soundEnabled = true, onT
     }
   }, [remaining, soundEnabled]);
 
+  const handleStart = () => {
+    const left = pauseRemaining || WORK;
+    const et = Date.now() + left * 1000;
+    setEndTime(et);
+    setRunning(true);
+    setPauseRemaining(0);
+    saveTimer({ key: timerKey, endTime: et, paused: false, pauseRemaining: 0, intention });
+  };
+
+  const handlePause = () => {
+    clearInterval(ref.current);
+    const left = Math.max(0, Math.ceil((endTime - Date.now()) / 1000));
+    setRunning(false);
+    setEndTime(null);
+    setPauseRemaining(left);
+    setRemaining(left);
+    saveTimer({ key: timerKey, endTime: null, paused: true, pauseRemaining: left, intention });
+  };
+
+
   const progress = 1 - remaining / WORK;
   const done = remaining === 0;
-  const r = 62;
+  const r = 82;
+  const size = 200;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "1rem", padding: "1rem 0" }}>
-      <div style={{ position: "relative", width: 140, height: 140 }}>
-        <svg viewBox="0 0 140 140" width="140" height="140">
-          <circle cx="70" cy="70" r={r} fill="none" stroke="var(--border)" strokeWidth="5" />
-          <circle cx="70" cy="70" r={r} fill="none" stroke={done ? "var(--done)" : "var(--accent)"} strokeWidth="5" strokeLinecap="round"
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.8rem", padding: "0.5rem 0 1rem" }}>
+      {intention && (
+        <div style={{
+          fontFamily: "'Playfair Display', Georgia, serif",
+          fontSize: "1.15rem", fontWeight: 700, color: "var(--fg)",
+          textAlign: "center", lineHeight: 1.3, maxWidth: 300,
+          padding: "0 0.5rem",
+        }}>
+          {intention}
+        </div>
+      )}
+
+      <div style={{ position: "relative", width: size, height: size }}>
+        <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size}>
+          <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="var(--border)" strokeWidth="6" opacity="0.4" />
+          <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={done ? "var(--done)" : "var(--accent)"} strokeWidth="6" strokeLinecap="round"
             strokeDasharray={`${2 * Math.PI * r}`} strokeDashoffset={`${2 * Math.PI * r * (1 - progress)}`}
-            transform="rotate(-90 70 70)" style={{ transition: "stroke-dashoffset 0.5s ease" }} />
+            transform={`rotate(-90 ${size/2} ${size/2})`} style={{ transition: "stroke-dashoffset 0.3s ease" }} />
         </svg>
-        <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <TimerDisplay seconds={remaining} />
+        <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+          <span style={{
+            fontFamily: "'JetBrains Mono', 'SF Mono', monospace",
+            fontSize: "2.8rem", fontWeight: 700, letterSpacing: "0.02em",
+            color: done ? "var(--done)" : "var(--fg)",
+          }}>
+            {String(Math.floor(remaining / 60)).padStart(2, "0")}:{String(remaining % 60).padStart(2, "0")}
+          </span>
+          {!done && (
+            <span style={{ fontSize: "0.6rem", color: "var(--fg-dim)", textTransform: "uppercase", letterSpacing: "0.1em", marginTop: "0.1rem" }}>
+              {running ? "fokus" : "pausiert"}
+            </span>
+          )}
+          {done && (
+            <span style={{ fontSize: "0.7rem", color: "var(--done)", fontWeight: 600, marginTop: "0.1rem" }}>
+              Geschafft!
+            </span>
+          )}
         </div>
       </div>
+
       <div style={{ display: "flex", gap: "0.6rem" }}>
-        {!done && (
-          <button onClick={() => setRunning(!running)} style={btnStyle(running ? "var(--muted)" : "var(--accent)", running ? "var(--fg)" : "#fff")}>
-            {running ? "Pause" : remaining === WORK ? "Start" : "Weiter"}
+        {!done && !running && (
+          <button onClick={handleStart} style={btnStyle("var(--accent)", "#fff")}>
+            {remaining === WORK ? "Start" : "Weiter"}
           </button>
+        )}
+        {!done && running && (
+          <button onClick={handlePause} style={btnStyle("var(--muted)", "var(--fg)")}>Pause</button>
         )}
         {done && (
           <button onClick={onComplete} style={btnStyle("var(--done)", "#fff")}>✓ Fertig</button>
-        )}
-        {!done && remaining < WORK && (
-          <button onClick={() => { setRemaining(WORK); setRunning(false); }} style={{ ...btnStyle("transparent", "var(--fg-dim)"), border: "1px solid var(--border)" }}>
-            Reset
-          </button>
         )}
       </div>
     </div>
@@ -577,16 +877,15 @@ function BlockCard({ block, index, isActive, dayId, onUpdate, soundEnabled, onTi
               </button>
             </div>
           ) : (
-            <div>
-              <div style={{
-                background: "var(--muted)", borderRadius: 6, padding: "0.4rem 0.7rem", marginBottom: "0.5rem",
-                fontSize: "0.78rem", fontWeight: 500, color: "var(--fg)", textAlign: "center",
-                display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem",
-              }}>
-                🎯 {block.intentions[step.index]}
-              </div>
-              <PomodoroTimer key={`${index}-${step.index}`} onComplete={handlePomComplete} autoStart soundEnabled={soundEnabled} onTick={(secs, running) => onTimerTick && onTimerTick(secs, running, block.intentions[step.index])} />
-            </div>
+            <PomodoroTimer
+              key={`${index}-${step.index}`}
+              timerKey={`pom-${index}-${step.index}`}
+              intention={block.intentions[step.index]}
+              onComplete={handlePomComplete}
+              autoStart
+              soundEnabled={soundEnabled}
+              onTick={(secs, running) => onTimerTick && onTimerTick(secs, running, block.intentions[step.index])}
+            />
           )}
         </div>
       )}
@@ -680,6 +979,15 @@ export default function HealthTracker({ onDashboard, theme, settings, onSettings
     ]);
   }, [dayData, gamification]);
 
+  // Gap detection: >30 min since last completed pomodoro
+  const [gapDismissed, setGapDismissed] = useState(false);
+  const gapMinutes = (() => {
+    if (!dayData?.lastCompleted) return 0;
+    const lastMs = new Date(dayData.lastCompleted + "Z").getTime();
+    return Math.floor((Date.now() - lastMs) / 60000);
+  })();
+  const showGapAudit = !gapDismissed && gapMinutes >= GAP_THRESHOLD_MIN && Math.floor(gapMinutes / 25) >= 1;
+
   if (loading || !blocks || !dayData) return <div style={{ padding: "2rem", textAlign: "center" }}>Laden...</div>;
 
   const activeBlock = blocks.findIndex((b) => !isBlockComplete(b));
@@ -703,23 +1011,37 @@ export default function HealthTracker({ onDashboard, theme, settings, onSettings
     }}>
       <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Playfair+Display:wght@700&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet" />
 
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "center", marginBottom: "0.6rem", position: "relative" }}>
-        <div style={{ textAlign: "center", flex: 1 }}>
-          <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "1.7rem", fontWeight: 700, margin: 0 }}>Health System</h1>
-          <p style={{ fontSize: "0.78rem", color: "var(--fg-dim)", margin: "0.25rem 0 0", fontWeight: 500 }}>
-            {new Date().toLocaleDateString("de-CH", { weekday: "long", day: "numeric", month: "long" })}
-          </p>
-        </div>
-        {timerInfo && timerInfo.seconds > 0 && (
-          <div style={{ position: "absolute", right: 0, top: 0, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "2px" }}>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "0.9rem", fontWeight: 700, color: timerInfo.running ? "var(--accent)" : "var(--fg-dim)" }}>
-              {String(Math.floor(timerInfo.seconds / 60)).padStart(2, "0")}:{String(timerInfo.seconds % 60).padStart(2, "0")}
+      {/* Header: collapses when timer is active */}
+      <div style={{ marginBottom: "0.6rem" }}>
+        {timerInfo && timerInfo.seconds > 0 ? (
+          /* Compact header with live timer */
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ fontSize: "0.72rem", color: "var(--fg-dim)", fontWeight: 500 }}>
+              {new Date().toLocaleDateString("de-CH", { weekday: "short", day: "numeric", month: "short" })}
             </div>
-            {timerInfo.intention && (
-              <div style={{ fontSize: "0.55rem", color: "var(--fg-dim)", maxWidth: 100, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "right" }}>
-                {timerInfo.intention}
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              {timerInfo.intention && (
+                <div style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--fg)", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {timerInfo.intention}
+                </div>
+              )}
+              <div style={{
+                fontFamily: "'JetBrains Mono', monospace", fontSize: "1rem", fontWeight: 700,
+                color: timerInfo.running ? "var(--accent)" : "var(--fg-dim)",
+                background: timerInfo.running ? "rgba(196,77,43,0.08)" : "var(--muted)",
+                padding: "0.2rem 0.5rem", borderRadius: 6,
+              }}>
+                {String(Math.floor(timerInfo.seconds / 60)).padStart(2, "0")}:{String(timerInfo.seconds % 60).padStart(2, "0")}
               </div>
-            )}
+            </div>
+          </div>
+        ) : (
+          /* Full header when no timer */
+          <div style={{ textAlign: "center" }}>
+            <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "1.7rem", fontWeight: 700, margin: 0 }}>Health System</h1>
+            <p style={{ fontSize: "0.78rem", color: "var(--fg-dim)", margin: "0.25rem 0 0", fontWeight: 500 }}>
+              {new Date().toLocaleDateString("de-CH", { weekday: "long", day: "numeric", month: "long" })}
+            </p>
           </div>
         )}
       </div>
@@ -769,6 +1091,17 @@ export default function HealthTracker({ onDashboard, theme, settings, onSettings
       }}>
         Fokus → Pomodoro → Bewertung → Bewegung → … → grosse Pause
       </div>
+
+      {/* Gap audit — blocks further progress until resolved */}
+      {showGapAudit && (
+        <GapAudit
+          gapMinutes={gapMinutes}
+          lastTime={dayData.lastCompleted}
+          dayId={dayData.day.id}
+          projects={projects}
+          onComplete={() => { setGapDismissed(true); loadData(); }}
+        />
+      )}
 
       {allDone && (
         <div style={{

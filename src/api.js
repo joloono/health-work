@@ -57,6 +57,13 @@ export const api = {
       body: JSON.stringify({ biz_rating: bizRating, energy_rating: energyRating }),
     }),
 
+  // Retro pomodoros (gap audit)
+  createRetroPomodoros: (entries) =>
+    request("/api/pomodoros/retro", {
+      method: "POST",
+      body: JSON.stringify({ entries }),
+    }),
+
   // Movements
   createMovement: (dayId, blockIndex, type, exercise, durationSeconds) =>
     request("/api/movements", {

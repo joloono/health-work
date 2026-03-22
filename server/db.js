@@ -43,6 +43,7 @@ db.exec(`
     project_id INTEGER REFERENCES projects(id),
     biz_rating INTEGER,
     energy_rating INTEGER,
+    retroactive INTEGER DEFAULT 0,
     started_at TEXT DEFAULT (datetime('now')),
     completed_at TEXT
   );
@@ -83,6 +84,9 @@ try {
   }
   if (!cols.includes("energy_rating")) {
     db.exec("ALTER TABLE pomodoros ADD COLUMN energy_rating INTEGER");
+  }
+  if (!cols.includes("retroactive")) {
+    db.exec("ALTER TABLE pomodoros ADD COLUMN retroactive INTEGER DEFAULT 0");
   }
 } catch {}
 
@@ -163,6 +167,25 @@ function completePomodoro(id) {
 
 function ratePomodoro(id, bizRating, energyRating) {
   return stmtRatePom.run(bizRating, energyRating, id);
+}
+
+// Retro pomodoros (gap audit)
+const stmtCreateRetroPom = db.prepare(
+  "INSERT INTO pomodoros (day_id, block_index, pom_index, intention, value_tags, project_id, biz_rating, energy_rating, retroactive, started_at, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)"
+);
+const stmtLastCompletedPom = db.prepare(
+  "SELECT completed_at FROM pomodoros WHERE day_id = ? AND completed_at IS NOT NULL ORDER BY completed_at DESC LIMIT 1"
+);
+
+function createRetroPomodoro(dayId, blockIndex, pomIndex, intention, valueTags, projectId, bizRating, energyRating, startedAt, completedAt) {
+  const tags = Array.isArray(valueTags) ? valueTags.join(",") : (valueTags || "");
+  const result = stmtCreateRetroPom.run(dayId, blockIndex, pomIndex, intention, tags, projectId || null, bizRating, energyRating, startedAt, completedAt);
+  return result.lastInsertRowid;
+}
+
+function getLastCompletedTime(dayId) {
+  const row = stmtLastCompletedPom.get(dayId);
+  return row ? row.completed_at : null;
 }
 
 function getPomodorosByDay(dayId) {
@@ -261,6 +284,8 @@ module.exports = {
   createPomodoro,
   completePomodoro,
   ratePomodoro,
+  createRetroPomodoro,
+  getLastCompletedTime,
   getPomodorosByDay,
   createMovement,
   getMovementsByDay,

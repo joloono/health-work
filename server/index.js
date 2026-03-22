@@ -49,7 +49,8 @@ app.get("/api/today", (req, res) => {
   const pomodoros = db.getPomodorosByDay(day.id);
   const movements = db.getMovementsByDay(day.id);
   const gamification = db.getGamification(today);
-  res.json({ day, pomodoros, movements, gamification });
+  const lastCompleted = db.getLastCompletedTime(day.id);
+  res.json({ day, pomodoros, movements, gamification, lastCompleted });
 });
 
 // --- Projects ---
@@ -89,6 +90,21 @@ app.patch("/api/pomodoros/:id/rate", (req, res) => {
   const { biz_rating, energy_rating } = req.body;
   db.ratePomodoro(req.params.id, biz_rating, energy_rating);
   res.json({ ok: true });
+});
+
+// Retro pomodoros (gap audit) — batch insert
+app.post("/api/pomodoros/retro", (req, res) => {
+  const { entries } = req.body; // [{day_id, intention, project_id, biz_rating, energy_rating, started_at, completed_at, value_tags}]
+  const ids = [];
+  for (const e of entries) {
+    const id = db.createRetroPomodoro(
+      e.day_id, e.block_index || 0, e.pom_index || 0,
+      e.intention, e.value_tags || [], e.project_id,
+      e.biz_rating, e.energy_rating, e.started_at, e.completed_at
+    );
+    ids.push(id);
+  }
+  res.json({ ids });
 });
 
 // Save a movement
