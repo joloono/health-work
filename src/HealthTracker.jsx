@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { api } from "./api.js";
 import { getRank, calcDayXP, calcEffectiveXP, getStreakMultiplier, dayCountsForStreak, getLevelFromXP, getLevelProgress, xpForLevel } from "./gamification.js";
 import { playNotificationSound } from "./useSettings.js";
-import { VALUE_TAGS, CATEGORY_COLORS, btnStyle, chipStyle, footerBtn, inputStyle, labelStyle, pageStyle } from "./constants.js";
+import { VALUE_TAGS, CATEGORY_COLORS, btnStyle, chipStyle, inputStyle, pageStyle } from "./constants.js";
 
 const QUICK_MOVES = [
   { id: "pushups", label: "Liegestütze", icon: "💪" },
@@ -968,7 +968,7 @@ function BlockCard({ block, index, isActive, dayId, onUpdate, soundEnabled, onTi
 }
 
 
-export default function HealthTracker({ onDashboard, onProjects, theme, settings, onSettingsChange }) {
+export default function HealthTracker({ theme, settings, onSettingsChange }) {
   const [dayData, setDayData] = useState(null);
   const [blocks, setBlocks] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -984,12 +984,25 @@ export default function HealthTracker({ onDashboard, onProjects, theme, settings
         api.getProjects(),
       ]);
       setDayData(data);
-      setBlocks(buildBlocksFromDB(data.pomodoros || [], data.movements || []));
+      const builtBlocks = buildBlocksFromDB(data.pomodoros || [], data.movements || []);
+      setBlocks(builtBlocks);
       setGamification({
         current: data.gamification || { current_rank: 1, streak_length: 0, cumulative_points: 0 },
         history: gamHistory || [],
       });
       setProjects(projs || []);
+
+      // Guard: clear stale localStorage timer if DB has no matching pomodoro
+      const saved = loadTimer();
+      if (saved && saved.key) {
+        const [, blockIdx, pomIdx] = saved.key.match(/pom-(\d+)-(\d+)/) || [];
+        if (blockIdx != null) {
+          const block = builtBlocks[parseInt(blockIdx)];
+          if (!block || !block.intentions[parseInt(pomIdx)]) {
+            saveTimer(null);
+          }
+        }
+      }
     } catch (e) {
       console.error("Failed to load:", e);
     }
@@ -1180,17 +1193,6 @@ export default function HealthTracker({ onDashboard, onProjects, theme, settings
         ))}
       </div>
 
-      {/* Footer */}
-      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "0.5rem", marginTop: "1.2rem", flexWrap: "wrap" }}>
-        <button onClick={onDashboard} style={footerBtn}>Dashboard</button>
-        <button onClick={onProjects} style={footerBtn}>Projekte</button>
-        <button onClick={() => onSettingsChange({ darkMode: !settings.darkMode })} style={footerBtn}>
-          {settings.darkMode ? "☀️" : "🌙"}
-        </button>
-        <button onClick={() => onSettingsChange({ soundEnabled: !settings.soundEnabled })} style={footerBtn}>
-          {settings.soundEnabled ? "🔔" : "🔕"}
-        </button>
-      </div>
     </div>
   );
 }

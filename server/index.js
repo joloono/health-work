@@ -53,6 +53,26 @@ app.get("/api/today", (req, res) => {
   res.json({ day, pomodoros, movements, gamification, lastCompleted });
 });
 
+// --- Categories ---
+
+app.get("/api/categories", (req, res) => {
+  const cats = req.query.all ? db.getAllCategories() : db.getCategories();
+  res.json(cats);
+});
+
+app.post("/api/categories", (req, res) => {
+  const { slug, label, icon, color, description, sort_order } = req.body;
+  if (!slug || !label) return res.status(400).json({ error: "slug and label required" });
+  const id = db.createCategory(slug, label, icon, color, description, sort_order);
+  res.json({ id });
+});
+
+app.patch("/api/categories/:id", (req, res) => {
+  const { slug, label, icon, color, description, active, sort_order } = req.body;
+  db.updateCategory(req.params.id, slug, label, icon, color, description, active, sort_order);
+  res.json({ ok: true });
+});
+
 // --- Projects ---
 
 app.get("/api/projects", (req, res) => {

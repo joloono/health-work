@@ -461,7 +461,7 @@ function Empty({ text }) {
 // MAIN DASHBOARD
 // ============================================================
 
-export default function Dashboard({ onBack, theme }) {
+export default function Dashboard({ theme }) {
   const [tab, setTab] = useState("tageslog");
   const [dayData, setDayData] = useState(null);
   const [weekData, setWeekData] = useState(null);
@@ -490,9 +490,8 @@ export default function Dashboard({ onBack, theme }) {
       <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Playfair+Display:wght@700&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet" />
 
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }}>
-        <button onClick={onBack} style={{ ...btnStyle("transparent", "var(--fg-dim)", "0.8rem"), border: "1px solid var(--border)", padding: "0.3rem 0.8rem" }}>←</button>
-        <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "1.3rem", fontWeight: 700, margin: 0 }}>Dashboard</h2>
+      <div style={{ marginBottom: "1rem" }}>
+        <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "1.3rem", fontWeight: 700, margin: 0 }}>📊 Dashboard</h2>
       </div>
 
       {/* Tabs */}

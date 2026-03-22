@@ -62,6 +62,17 @@ db.exec(`
     completed_at TEXT DEFAULT (datetime('now'))
   );
 
+  CREATE TABLE IF NOT EXISTS categories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    slug TEXT UNIQUE NOT NULL,
+    label TEXT NOT NULL,
+    icon TEXT DEFAULT '',
+    color TEXT DEFAULT '#888',
+    description TEXT DEFAULT '',
+    active INTEGER DEFAULT 1,
+    sort_order INTEGER DEFAULT 0
+  );
+
   CREATE TABLE IF NOT EXISTS gamification (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     date TEXT UNIQUE NOT NULL,
@@ -123,6 +134,19 @@ try {
   }
   if (!projCols.includes("default_value_category")) {
     db.exec("ALTER TABLE projects ADD COLUMN default_value_category TEXT DEFAULT ''");
+  }
+} catch {}
+
+// Seed default categories if table is empty
+try {
+  const catCount = db.prepare("SELECT COUNT(*) as c FROM categories").get().c;
+  if (catCount === 0) {
+    const insert = db.prepare("INSERT INTO categories (slug, label, icon, color, sort_order) VALUES (?, ?, ?, ?, ?)");
+    insert.run("umsatz", "Umsatz", "💰", "#f5c842", 1);
+    insert.run("gesundheit", "Gesundheit", "🏥", "#7ec4e8", 2);
+    insert.run("investition", "Investition", "🌱", "#b88a70", 3);
+    insert.run("oekosystem", "App-Ökosystem", "🔧", "#e8945a", 4);
+    insert.run("systeme", "Systeme", "⚙️", "#a09c92", 5);
   }
 } catch {}
 
@@ -336,6 +360,25 @@ function getCalendar(startDate, endDate) {
   return stmtCalendar.all(startDate, endDate);
 }
 
+// --- Category operations ---
+
+const stmtGetCategories = db.prepare("SELECT * FROM categories WHERE active = 1 ORDER BY sort_order, label");
+const stmtGetAllCategories = db.prepare("SELECT * FROM categories ORDER BY sort_order, label");
+const stmtCreateCategory = db.prepare("INSERT INTO categories (slug, label, icon, color, description, sort_order) VALUES (?, ?, ?, ?, ?, ?)");
+const stmtUpdateCategory = db.prepare("UPDATE categories SET slug = ?, label = ?, icon = ?, color = ?, description = ?, active = ?, sort_order = ? WHERE id = ?");
+
+function getCategories() { return stmtGetCategories.all(); }
+function getAllCategories() { return stmtGetAllCategories.all(); }
+
+function createCategory(slug, label, icon, color, description, sortOrder) {
+  const result = stmtCreateCategory.run(slug, label, icon || "", color || "#888", description || "", sortOrder || 0);
+  return result.lastInsertRowid;
+}
+
+function updateCategory(id, slug, label, icon, color, description, active, sortOrder) {
+  return stmtUpdateCategory.run(slug, label, icon || "", color || "#888", description || "", active ? 1 : 0, sortOrder || 0, id);
+}
+
 // --- Recent days ---
 
 const stmtRecentDays = db.prepare(
@@ -368,4 +411,8 @@ module.exports = {
   getWeekSummary,
   getCalendar,
   getRecentDays,
+  getCategories,
+  getAllCategories,
+  createCategory,
+  updateCategory,
 };

@@ -30,6 +30,15 @@ export const api = {
   getToday: () => request("/api/today"),
 
   // Projects
+  // Categories
+  getCategories: () => request("/api/categories"),
+  getAllCategories: () => request("/api/categories?all=1"),
+  createCategory: (slug, label, icon, color, description, sortOrder) =>
+    request("/api/categories", { method: "POST", body: JSON.stringify({ slug, label, icon, color, description, sort_order: sortOrder }) }),
+  updateCategory: (id, data) =>
+    request(`/api/categories/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+
+  // Projects
   getProjects: () => request("/api/projects"),
 
   createProject: (name, color, client, description, defaultValueCategory) =>

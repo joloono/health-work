@@ -106,7 +106,7 @@ function ProjectCard({ project, onSave, onToggleActive }) {
   );
 }
 
-export default function ProjectSettings({ onBack, theme }) {
+export default function ProjectSettings({ theme }) {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showNew, setShowNew] = useState(false);
@@ -154,11 +154,8 @@ export default function ProjectSettings({ onBack, theme }) {
     <div style={pageStyle(theme)}>
       <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet" />
 
-      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }}>
-        <button onClick={onBack} style={{ ...btn("transparent", "var(--fg-dim)", "0.8rem"), border: "1px solid var(--border)", padding: "0.3rem 0.8rem" }}>
-          ← Zurück
-        </button>
-        <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "1.3rem", fontWeight: 700, margin: 0 }}>Projekte</h2>
+      <div style={{ marginBottom: "1rem" }}>
+        <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "1.3rem", fontWeight: 700, margin: 0 }}>📁 Projekte</h2>
       </div>
 
       {loading ? (
