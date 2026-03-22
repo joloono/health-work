@@ -1,0 +1,15 @@
+services:
+  health-system:
+    build: .
+    ports:
+      - "3001:3001"
+    environment:
+      - AUTH_USER=${AUTH_USER:-jo}
+      - AUTH_PASS=${AUTH_PASS:-health2026}
+      - DB_PATH=/app/data/health.db
+    volumes:
+      - health-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  health-data:
