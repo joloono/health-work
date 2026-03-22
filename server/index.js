@@ -12,27 +12,8 @@ const PASS = process.env.AUTH_PASS || "health2026";
 
 app.use(express.json());
 
-// Health check (before auth — for Cloud Run)
+// Health check
 app.get("/healthz", (req, res) => res.json({ ok: true }));
-
-// Basic Auth
-app.use((req, res, next) => {
-  // Skip auth in dev for Vite proxy
-  if (process.env.NODE_ENV !== "production" && req.headers["x-skip-auth"]) {
-    return next();
-  }
-  const auth = req.headers.authorization;
-  if (!auth || !auth.startsWith("Basic ")) {
-    res.set("WWW-Authenticate", 'Basic realm="Health System"');
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-  const [user, pass] = Buffer.from(auth.split(" ")[1], "base64")
-    .toString()
-    .split(":");
-  if (user === USER && pass === PASS) return next();
-  res.set("WWW-Authenticate", 'Basic realm="Health System"');
-  return res.status(401).json({ error: "Unauthorized" });
-});
 
 // CORS for dev
 if (process.env.NODE_ENV !== "production") {

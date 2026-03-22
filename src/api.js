@@ -1,41 +1,9 @@
-function getCredentials() {
-  return localStorage.getItem("health-auth") || "";
-}
-
-function headers() {
-  const cred = getCredentials();
-  const h = { "Content-Type": "application/json" };
-  if (cred) h.Authorization = `Basic ${cred}`;
-  return h;
-}
-
 async function request(url, options = {}) {
-  const res = await fetch(url, { ...options, headers: { ...headers(), ...options.headers } });
-  if (res.status === 401) {
-    throw new Error("Unauthorized");
-  }
+  const res = await fetch(url, {
+    ...options,
+    headers: { "Content-Type": "application/json", ...options.headers },
+  });
   return res.json();
-}
-
-export function setAuth(user, pass) {
-  localStorage.setItem("health-auth", btoa(`${user}:${pass}`));
-}
-
-export function getAuth() {
-  return localStorage.getItem("health-auth");
-}
-
-export function clearAuth() {
-  localStorage.removeItem("health-auth");
-}
-
-export async function testAuth() {
-  try {
-    await request("/api/today");
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 export const api = {
