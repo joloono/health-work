@@ -394,11 +394,11 @@ function PomodoroTimer({ onComplete, autoStart = false, soundEnabled = true, onT
     if (remaining > 0) {
       const mm = String(Math.floor(remaining / 60)).padStart(2, "0");
       const ss = String(remaining % 60).padStart(2, "0");
-      document.title = `${mm}:${ss} — ${intention || "Pomodoro"}`;
+      document.title = `${mm}:${ss} — ${intention || "Pomodoro"} 🏛️`;
     } else if (remaining === 0 && intention) {
-      document.title = `✓ ${intention} — Health System`;
+      document.title = `✓ ${intention} — 🏛️ Health System`;
     }
-    return () => { document.title = "Health System"; };
+    return () => { document.title = "🏛️ Health System"; };
   }, [remaining, intention]);
 
   useEffect(() => {
@@ -524,47 +524,82 @@ function MoveCountdown({ onFinished }) {
   );
 }
 
-function QuickMovePicker({ onSelect, selected }) {
+function QuickMovePicker({ onConfirm, selected }) {
   const [timerDone, setTimerDone] = useState(false);
+  const [picks, setPicks] = useState([]);
+  const alreadyDone = !!selected;
+
+  const toggle = (id) => setPicks((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  const selectedSet = alreadyDone ? (selected || "").split(",") : picks;
 
   return (
     <div style={{ padding: "0.5rem 0" }}>
-      {!timerDone && !selected && <MoveCountdown onFinished={() => setTimerDone(true)} />}
-      {(timerDone || selected) && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.4rem", marginTop: "0.5rem" }}>
-          {QUICK_MOVES.map((m) => (
-            <button key={m.id} onClick={() => onSelect(m.id)} style={{
-              display: "flex", flexDirection: "column", alignItems: "center", gap: "0.15rem",
-              padding: "0.45rem 0.2rem", border: selected === m.id ? "2px solid var(--done)" : "1px solid var(--border)",
-              borderRadius: 8, background: selected === m.id ? "var(--done-bg)" : "var(--card-bg)",
-              cursor: "pointer", fontSize: "0.72rem", fontFamily: "inherit", color: "var(--fg)",
-              fontWeight: selected === m.id ? 600 : 400, transition: "all 0.15s ease",
-            }}>
-              <span style={{ fontSize: "1rem" }}>{m.icon}</span>
-              <span>{m.label}</span>
-            </button>
-          ))}
-        </div>
+      {!timerDone && !alreadyDone && <MoveCountdown onFinished={() => setTimerDone(true)} />}
+      {(timerDone || alreadyDone) && (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.4rem", marginTop: "0.5rem" }}>
+            {QUICK_MOVES.map((m) => {
+              const active = selectedSet.includes(m.id);
+              return (
+                <button key={m.id} onClick={() => !alreadyDone && toggle(m.id)} style={{
+                  display: "flex", flexDirection: "column", alignItems: "center", gap: "0.15rem",
+                  padding: "0.45rem 0.2rem", border: active ? "2px solid var(--done)" : "1px solid var(--border)",
+                  borderRadius: 8, background: active ? "var(--done-bg)" : "var(--card-bg)",
+                  cursor: alreadyDone ? "default" : "pointer", fontSize: "0.72rem", fontFamily: "inherit", color: "var(--fg)",
+                  fontWeight: active ? 600 : 400, transition: "all 0.15s ease",
+                }}>
+                  <span style={{ fontSize: "1rem" }}>{m.icon}</span>
+                  <span>{m.label}</span>
+                </button>
+              );
+            })}
+          </div>
+          {!alreadyDone && picks.length > 0 && (
+            <div style={{ textAlign: "center", marginTop: "0.5rem" }}>
+              <button onClick={() => onConfirm(picks.join(","))} style={btnStyle("var(--done)", "#fff", "0.78rem")}>
+                ✓ {picks.length} Übung{picks.length !== 1 ? "en" : ""} loggen
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
 }
 
-function BlockMovePicker({ onSelect, selected }) {
+function BlockMovePicker({ onConfirm, selected }) {
+  const [picks, setPicks] = useState([]);
+  const alreadyDone = !!selected;
+
+  const toggle = (id) => setPicks((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  const selectedSet = alreadyDone ? (selected || "").split(",") : picks;
+
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.4rem", padding: "0.4rem 0" }}>
-      {BLOCK_MOVES.map((m) => (
-        <button key={m.id} onClick={() => onSelect(m.id)} style={{
-          display: "flex", alignItems: "center", gap: "0.4rem", padding: "0.55rem 0.6rem",
-          border: selected === m.id ? "2px solid var(--done)" : "1px solid var(--border)",
-          borderRadius: 8, background: selected === m.id ? "var(--done-bg)" : "var(--card-bg)",
-          cursor: "pointer", fontSize: "0.78rem", fontFamily: "inherit", color: "var(--fg)",
-          fontWeight: selected === m.id ? 600 : 400, transition: "all 0.15s ease",
-        }}>
-          <span>{m.icon}</span>
-          <span>{m.label}</span>
-        </button>
-      ))}
+    <div style={{ padding: "0.4rem 0" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.4rem" }}>
+        {BLOCK_MOVES.map((m) => {
+          const active = selectedSet.includes(m.id);
+          return (
+            <button key={m.id} onClick={() => !alreadyDone && toggle(m.id)} style={{
+              display: "flex", alignItems: "center", gap: "0.4rem", padding: "0.55rem 0.6rem",
+              border: active ? "2px solid var(--done)" : "1px solid var(--border)",
+              borderRadius: 8, background: active ? "var(--done-bg)" : "var(--card-bg)",
+              cursor: alreadyDone ? "default" : "pointer", fontSize: "0.78rem", fontFamily: "inherit", color: "var(--fg)",
+              fontWeight: active ? 600 : 400, transition: "all 0.15s ease",
+            }}>
+              <span>{m.icon}</span>
+              <span>{m.label}</span>
+            </button>
+          );
+        })}
+      </div>
+      {!alreadyDone && picks.length > 0 && (
+        <div style={{ textAlign: "center", marginTop: "0.5rem" }}>
+          <button onClick={() => onConfirm(picks.join(","))} style={btnStyle("var(--done)", "#fff", "0.78rem")}>
+            ✓ Pause loggen
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -737,9 +772,10 @@ function BlockCard({ block, index, isActive, dayId, onUpdate, soundEnabled, onTi
     onUpdate();
   };
 
-  const handleBlockMove = async (exerciseId) => {
+  const handleBlockMove = async (exerciseIds) => {
     const durations = { walk: 900, rope_long: 600, workout: 600, mobility: 600 };
-    await api.createMovement(dayId, index, "block", exerciseId, durations[exerciseId] || 600);
+    const maxDur = Math.max(...exerciseIds.split(",").map((id) => durations[id] || 600));
+    await api.createMovement(dayId, index, "block", exerciseIds, maxDur);
     onUpdate();
   };
 
@@ -914,7 +950,7 @@ function BlockCard({ block, index, isActive, dayId, onUpdate, soundEnabled, onTi
           }}>
             ↑ Aufstehen! Mindestens 1 Minute bewegen
           </div>
-          <QuickMovePicker selected={block.miniMoves[step.index]} onSelect={(id) => handleMiniMove(step.index, id)} />
+          <QuickMovePicker selected={block.miniMoves[step.index]} onConfirm={(ids) => handleMiniMove(step.index, ids)} />
         </div>
       )}
 
@@ -924,7 +960,7 @@ function BlockCard({ block, index, isActive, dayId, onUpdate, soundEnabled, onTi
           <div style={{ fontSize: "0.82rem", fontWeight: 700, color: "var(--done)", marginBottom: "0.25rem", textAlign: "center" }}>
             🎯 Block geschafft! Grössere Pause wählen:
           </div>
-          <BlockMovePicker selected={block.blockMove} onSelect={handleBlockMove} />
+          <BlockMovePicker selected={block.blockMove} onConfirm={handleBlockMove} />
         </div>
       )}
     </div>
@@ -1028,7 +1064,7 @@ export default function HealthTracker({ onDashboard, onProjects, theme, settings
         ) : (
           /* Full header when no timer */
           <div style={{ textAlign: "center" }}>
-            <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "1.7rem", fontWeight: 700, margin: 0 }}>Health System</h1>
+            <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "1.7rem", fontWeight: 700, margin: 0 }}>🏛️ Health System</h1>
             <p style={{ fontSize: "0.78rem", color: "var(--fg-dim)", margin: "0.25rem 0 0", fontWeight: 500 }}>
               {new Date().toLocaleDateString("de-CH", { weekday: "long", day: "numeric", month: "long" })}
             </p>

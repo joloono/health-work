@@ -158,8 +158,17 @@ const stmtGetActiveProjects = db.prepare(
   "SELECT * FROM projects WHERE active = 1 ORDER BY name"
 );
 const stmtGetAllProjects = db.prepare("SELECT * FROM projects ORDER BY name");
+const stmtFindProjectByName = db.prepare("SELECT * FROM projects WHERE LOWER(name) = LOWER(?)");
 
 function createProject(name, color, client, description, defaultValueCategory) {
+  // Auto-merge: if project with same name exists, return existing + reactivate
+  const existing = stmtFindProjectByName.get(name);
+  if (existing) {
+    if (!existing.active) {
+      stmtUpdateProject.run(existing.name, existing.description, existing.color, existing.default_value_category, existing.client, 1, existing.id);
+    }
+    return existing.id;
+  }
   const result = stmtCreateProject.run(name, description || "", color || "#c44d2b", defaultValueCategory || "", client || "");
   return result.lastInsertRowid;
 }
