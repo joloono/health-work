@@ -3,8 +3,10 @@ import HealthTracker from "./HealthTracker.jsx";
 import Dashboard from "./Dashboard.jsx";
 import ProjectSettings from "./ProjectSettings.jsx";
 import CategorySettings from "./CategorySettings.jsx";
+import Login from "./Login.jsx";
 import { useSettings } from "./useSettings.js";
 import { footerBtn } from "./constants.js";
+import { getAuth, testAuth, clearAuth } from "./api.js";
 
 const LIGHT = {
   "--fg": "#1a1a1a", "--fg-dim": "#888", "--bg": "#fafaf8", "--card-bg": "#fff",
@@ -115,6 +117,8 @@ export default function App() {
   const [view, setView] = useState("timer");
   const [settings, updateSettings] = useSettings();
   const globalTimer = useGlobalTimer();
+  const [authed, setAuthed] = useState(!!getAuth());
+  const [authChecked, setAuthChecked] = useState(false);
 
   const theme = settings.darkMode ? DARK : LIGHT;
 
@@ -122,6 +126,18 @@ export default function App() {
     document.body.style.background = theme["--bg"];
     document.documentElement.style.background = theme["--bg"];
   }, [theme]);
+
+  // Verify stored credentials on mount
+  useEffect(() => {
+    if (getAuth()) {
+      testAuth().then((ok) => { setAuthed(ok); if (!ok) clearAuth(); setAuthChecked(true); });
+    } else {
+      setAuthChecked(true);
+    }
+  }, []);
+
+  if (!authChecked) return null;
+  if (!authed) return <Login theme={theme} onSuccess={() => setAuthed(true)} />;
 
   return (
     <div style={{ ...theme }}>

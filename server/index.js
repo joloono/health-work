@@ -12,6 +12,9 @@ const PASS = process.env.AUTH_PASS || "health2026";
 
 app.use(express.json());
 
+// Health check (before auth — for Cloud Run)
+app.get("/healthz", (req, res) => res.json({ ok: true }));
+
 // Basic Auth
 app.use((req, res, next) => {
   // Skip auth in dev for Vite proxy
