@@ -1,13 +1,6 @@
 import { useState, useEffect } from "react";
 import { api } from "./api.js";
-
-function btnStyle(bg, fg, size = "0.88rem") {
-  return {
-    background: bg, color: fg, border: "none", borderRadius: 8,
-    padding: "0.5rem 1.4rem", fontSize: size, fontWeight: 600,
-    cursor: "pointer", fontFamily: "inherit",
-  };
-}
+import { btnStyle, pageStyle, footerBtn } from "./constants.js";
 
 function BarChart({ data, maxValue, label, color = "var(--accent)", height = 120 }) {
   if (!data.length) return null;
@@ -225,6 +218,79 @@ function Wochenüberblick({ weekData }) {
   );
 }
 
+const CATEGORY_COLORS = {
+  umsatz: "#f5c842", gesundheit: "#7ec4e8", investition: "#b88a70",
+  oekosystem: "#e8945a", systeme: "#a09c92",
+};
+
+function AuditKalender({ calendarData, onDayClick }) {
+  const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [data, setData] = useState(calendarData || []);
+
+  useEffect(() => {
+    api.getCalendar(month).then(setData).catch(() => {});
+  }, [month]);
+
+  const y = parseInt(month.slice(0, 4));
+  const m = parseInt(month.slice(5, 7));
+  const firstDay = new Date(y, m - 1, 1).getDay(); // 0=Sun
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const startOffset = firstDay === 0 ? 6 : firstDay - 1; // Mon-based
+
+  const dayMap = {};
+  for (const d of data) dayMap[d.date] = d;
+
+  const prevMonth = () => {
+    const prev = new Date(y, m - 2, 1);
+    setMonth(`${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, "0")}`);
+  };
+  const nextMonth = () => {
+    const next = new Date(y, m, 1);
+    setMonth(`${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}`);
+  };
+
+  const monthLabel = new Date(y, m - 1).toLocaleDateString("de-CH", { month: "long", year: "numeric" });
+  const dayLabels = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.6rem" }}>
+        <button onClick={prevMonth} style={{ background: "transparent", border: "1px solid var(--border)", borderRadius: 6, padding: "0.2rem 0.5rem", fontSize: "0.75rem", cursor: "pointer", fontFamily: "inherit", color: "var(--fg-dim)" }}>←</button>
+        <span style={{ fontWeight: 600, fontSize: "0.85rem" }}>{monthLabel}</span>
+        <button onClick={nextMonth} style={{ background: "transparent", border: "1px solid var(--border)", borderRadius: 6, padding: "0.2rem 0.5rem", fontSize: "0.75rem", cursor: "pointer", fontFamily: "inherit", color: "var(--fg-dim)" }}>→</button>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "2px" }}>
+        {dayLabels.map((d) => (
+          <div key={d} style={{ fontSize: "0.55rem", color: "var(--fg-dim)", textAlign: "center", fontWeight: 600, padding: "0.2rem 0" }}>{d}</div>
+        ))}
+        {Array.from({ length: startOffset }).map((_, i) => <div key={`e-${i}`} />)}
+        {Array.from({ length: daysInMonth }, (_, i) => {
+          const day = i + 1;
+          const dateStr = `${month}-${String(day).padStart(2, "0")}`;
+          const d = dayMap[dateStr];
+          const poms = d?.pom_count || 0;
+          const intensity = Math.min(1, poms / 8);
+          const isToday = dateStr === new Date().toISOString().slice(0, 10);
+
+          return (
+            <button key={day} onClick={() => onDayClick && onDayClick(dateStr)} style={{
+              aspectRatio: "1", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+              borderRadius: 6, fontSize: "0.6rem", fontFamily: "inherit", cursor: poms > 0 ? "pointer" : "default",
+              border: isToday ? "2px solid var(--accent)" : "1px solid var(--border)",
+              background: poms > 0 ? `rgba(245, 200, 66, ${0.15 + intensity * 0.4})` : "var(--card-bg)",
+              color: "var(--fg)", fontWeight: isToday ? 700 : 400,
+            }}>
+              <span>{day}</span>
+              {poms > 0 && <span style={{ fontSize: "0.45rem", color: "var(--fg-dim)" }}>{poms}p</span>}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard({ onBack, theme }) {
   const [tab, setTab] = useState("tageslog");
   const [dayData, setDayData] = useState(null);
@@ -245,18 +311,14 @@ export default function Dashboard({ onBack, theme }) {
   }, []);
 
   const tabs = [
-    { id: "tageslog", label: "Tageslog" },
+    { id: "tageslog", label: "Tag" },
     { id: "projekte", label: "Projekte" },
     { id: "woche", label: "Woche" },
+    { id: "kalender", label: "Kalender" },
   ];
 
   return (
-    <div style={{
-      ...theme,
-      fontFamily: "'IBM Plex Sans', -apple-system, sans-serif",
-      maxWidth: 480, margin: "0 auto", padding: "1.5rem 1rem", color: "var(--fg)",
-      minHeight: "100vh", background: "var(--bg)",
-    }}>
+    <div style={pageStyle(theme)}>
       <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Playfair+Display:wght@700&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet" />
 
       <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }}>
@@ -287,6 +349,7 @@ export default function Dashboard({ onBack, theme }) {
           {tab === "tageslog" && <Tageslog dayData={dayData} />}
           {tab === "projekte" && <ProjektView dayData={dayData} />}
           {tab === "woche" && <Wochenüberblick weekData={weekData} />}
+          {tab === "kalender" && <AuditKalender />}
         </>
       )}
     </div>

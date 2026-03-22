@@ -32,10 +32,10 @@ export const api = {
   // Projects
   getProjects: () => request("/api/projects"),
 
-  createProject: (name, color, client) =>
+  createProject: (name, color, client, description, defaultValueCategory) =>
     request("/api/projects", {
       method: "POST",
-      body: JSON.stringify({ name, color, client }),
+      body: JSON.stringify({ name, color, client, description, default_value_category: defaultValueCategory }),
     }),
 
   updateProject: (id, data) =>
@@ -85,6 +85,8 @@ export const api = {
     request(`/api/gamification/history?days=${days}`),
 
   getWeekSummary: () => request("/api/week"),
+
+  getCalendar: (month) => request(`/api/calendar?month=${month || new Date().toISOString().slice(0, 7)}`),
 
   getRecentDays: (count = 7) => request(`/api/days/recent?count=${count}`),
 };

@@ -61,15 +61,15 @@ app.get("/api/projects", (req, res) => {
 });
 
 app.post("/api/projects", (req, res) => {
-  const { name, color, client } = req.body;
+  const { name, color, client, description, default_value_category } = req.body;
   if (!name) return res.status(400).json({ error: "name required" });
-  const id = db.createProject(name, color, client);
+  const id = db.createProject(name, color, client, description, default_value_category);
   res.json({ id });
 });
 
 app.patch("/api/projects/:id", (req, res) => {
-  const { name, color, client, active } = req.body;
-  db.updateProject(req.params.id, name, color, client, active);
+  const { name, description, color, default_value_category, client, active } = req.body;
+  db.updateProject(req.params.id, name, description, color, default_value_category, client, active);
   res.json({ ok: true });
 });
 
@@ -139,6 +139,18 @@ app.get("/api/gamification/history", (req, res) => {
 app.get("/api/week", (req, res) => {
   const summary = db.getWeekSummary();
   res.json(summary);
+});
+
+// Calendar month view
+app.get("/api/calendar", (req, res) => {
+  const month = req.query.month || new Date().toISOString().slice(0, 7); // "2026-03"
+  const startDate = `${month}-01`;
+  const y = parseInt(month.slice(0, 4));
+  const m = parseInt(month.slice(5, 7));
+  const lastDay = new Date(y, m, 0).getDate();
+  const endDate = `${month}-${String(lastDay).padStart(2, "0")}`;
+  const data = db.getCalendar(startDate, endDate);
+  res.json(data);
 });
 
 // Get recent days for streak calculation

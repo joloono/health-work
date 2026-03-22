@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { api } from "./api.js";
 import { getRank, calcDayXP, calcEffectiveXP, getStreakMultiplier, dayCountsForStreak, getLevelFromXP, getLevelProgress, xpForLevel } from "./gamification.js";
 import { playNotificationSound } from "./useSettings.js";
+import { VALUE_TAGS, CATEGORY_COLORS, btnStyle, chipStyle, footerBtn, inputStyle, labelStyle, pageStyle } from "./constants.js";
 
 const QUICK_MOVES = [
   { id: "pushups", label: "Liegestütze", icon: "💪" },
@@ -21,13 +22,6 @@ const BLOCK_MOVES = [
 
 const BLOCK_LABELS = ["I", "II", "III", "IV"];
 
-const VALUE_TAGS = [
-  { id: "umsatz", label: "Umsatz", icon: "💰" },
-  { id: "gesundheit", label: "Gesundheit", icon: "🏥" },
-  { id: "investition", label: "Investition", icon: "🌱" },
-  { id: "oekosystem", label: "App-Ökosystem", icon: "🔧" },
-  { id: "systeme", label: "Systeme", icon: "⚙️" },
-];
 
 const BIZ_LEVELS = [
   { value: 1, label: "gering", icon: "◐" },
@@ -869,9 +863,9 @@ function BlockCard({ block, index, isActive, dayId, onUpdate, soundEnabled, onTi
                     <button key={tag.id} onClick={() => toggleTag(tag.id)} style={{
                       display: "flex", alignItems: "center", gap: "0.25rem",
                       padding: "0.3rem 0.55rem", borderRadius: 6, fontSize: "0.68rem", fontFamily: "inherit",
-                      border: active ? "2px solid var(--accent)" : "1px solid var(--border)",
-                      background: active ? "rgba(196,77,43,0.1)" : "transparent",
-                      color: active ? "var(--accent)" : "var(--fg-dim)",
+                      border: active ? `2px solid ${tag.color}` : "1px solid var(--border)",
+                      background: active ? `${tag.color}20` : "transparent",
+                      color: active ? tag.color : "var(--fg-dim)",
                       cursor: "pointer", fontWeight: active ? 600 : 400,
                     }}>
                       <span style={{ fontSize: "0.8rem" }}>{tag.icon}</span>
@@ -937,15 +931,8 @@ function BlockCard({ block, index, isActive, dayId, onUpdate, soundEnabled, onTi
   );
 }
 
-function btnStyle(bg, fg, size = "0.88rem") {
-  return {
-    background: bg, color: fg, border: "none", borderRadius: 8,
-    padding: "0.5rem 1.4rem", fontSize: size, fontWeight: 600,
-    cursor: "pointer", fontFamily: "inherit",
-  };
-}
 
-export default function HealthTracker({ onDashboard, theme, settings, onSettingsChange }) {
+export default function HealthTracker({ onDashboard, onProjects, theme, settings, onSettingsChange }) {
   const [dayData, setDayData] = useState(null);
   const [blocks, setBlocks] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -996,6 +983,8 @@ export default function HealthTracker({ onDashboard, theme, settings, onSettings
   const totalBizRating = blocks.reduce((s, b) => s + b.bizRatings.reduce((sum, r) => sum + (r || 0), 0), 0);
   const totalEnergy = blocks.reduce((s, b) => s + b.energyRatings.reduce((sum, r) => sum + (r || 0), 0), 0);
   const totalRetro = (dayData.pomodoros || []).filter((p) => p.retroactive).length;
+  const drainCount = blocks.reduce((s, b) => s + b.energyRatings.filter((r) => r === -2).length, 0);
+  const showEnergyWarning = drainCount >= 3;
   const allDone = activeBlock === -1;
 
   // XP system
@@ -1009,12 +998,7 @@ export default function HealthTracker({ onDashboard, theme, settings, onSettings
   const rank = getRank(currentRank);
 
   return (
-    <div style={{
-      ...theme,
-      fontFamily: "'IBM Plex Sans', -apple-system, sans-serif",
-      maxWidth: 480, margin: "0 auto", padding: "1.5rem 1rem", color: "var(--fg)",
-      minHeight: "100vh", background: "var(--bg)",
-    }}>
+    <div style={pageStyle(theme)}>
       <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Playfair+Display:wght@700&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet" />
 
       {/* Header: collapses when timer is active */}
@@ -1113,6 +1097,17 @@ export default function HealthTracker({ onDashboard, theme, settings, onSettings
         Fokus → Pomodoro → Bewertung → Bewegung → … → grosse Pause
       </div>
 
+      {/* Energy warning */}
+      {showEnergyWarning && (
+        <div style={{
+          background: "rgba(220, 50, 50, 0.12)", border: "1px solid rgba(220, 50, 50, 0.3)",
+          borderRadius: 8, padding: "0.5rem 0.8rem", marginBottom: "0.7rem",
+          fontSize: "0.75rem", fontWeight: 600, color: "#c44", textAlign: "center",
+        }}>
+          Zu viel draining work heute — achte auf deine Energie.
+        </div>
+      )}
+
       {/* Gap audit — blocks further progress until resolved */}
       {showGapAudit && (
         <GapAudit
@@ -1151,22 +1146,12 @@ export default function HealthTracker({ onDashboard, theme, settings, onSettings
 
       {/* Footer */}
       <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "0.5rem", marginTop: "1.2rem", flexWrap: "wrap" }}>
-        <button onClick={onDashboard} style={{
-          background: "transparent", border: "1px solid var(--border)", borderRadius: 8,
-          padding: "0.5rem 1.2rem", fontSize: "0.78rem", color: "var(--fg-dim)", cursor: "pointer", fontFamily: "inherit", fontWeight: 500,
-        }}>
-          Dashboard →
-        </button>
-        <button onClick={() => onSettingsChange({ darkMode: !settings.darkMode })} style={{
-          background: "transparent", border: "1px solid var(--border)", borderRadius: 8,
-          padding: "0.5rem 0.8rem", fontSize: "0.78rem", color: "var(--fg-dim)", cursor: "pointer", fontFamily: "inherit",
-        }}>
+        <button onClick={onDashboard} style={footerBtn}>Dashboard</button>
+        <button onClick={onProjects} style={footerBtn}>Projekte</button>
+        <button onClick={() => onSettingsChange({ darkMode: !settings.darkMode })} style={footerBtn}>
           {settings.darkMode ? "☀️" : "🌙"}
         </button>
-        <button onClick={() => onSettingsChange({ soundEnabled: !settings.soundEnabled })} style={{
-          background: "transparent", border: "1px solid var(--border)", borderRadius: 8,
-          padding: "0.5rem 0.8rem", fontSize: "0.78rem", color: "var(--fg-dim)", cursor: "pointer", fontFamily: "inherit",
-        }}>
+        <button onClick={() => onSettingsChange({ soundEnabled: !settings.soundEnabled })} style={footerBtn}>
           {settings.soundEnabled ? "🔔" : "🔕"}
         </button>
       </div>

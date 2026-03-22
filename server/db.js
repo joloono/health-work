@@ -29,7 +29,9 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS projects (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
+    description TEXT DEFAULT '',
     color TEXT DEFAULT '#c44d2b',
+    default_value_category TEXT DEFAULT '',
     client TEXT DEFAULT '',
     active INTEGER DEFAULT 1,
     created_at TEXT DEFAULT (datetime('now'))
@@ -113,6 +115,17 @@ try {
   }
 } catch {}
 
+// Migrate projects table
+try {
+  const projCols = db.pragma("table_info(projects)").map((c) => c.name);
+  if (!projCols.includes("description")) {
+    db.exec("ALTER TABLE projects ADD COLUMN description TEXT DEFAULT ''");
+  }
+  if (!projCols.includes("default_value_category")) {
+    db.exec("ALTER TABLE projects ADD COLUMN default_value_category TEXT DEFAULT ''");
+  }
+} catch {}
+
 // --- Day operations ---
 
 const stmtGetDay = db.prepare("SELECT * FROM days WHERE date = ?");
@@ -136,23 +149,23 @@ function updateDayPoints(id, totalPoints, dayXP, effectiveXP, streakDay, rankLev
 // --- Project operations ---
 
 const stmtCreateProject = db.prepare(
-  "INSERT INTO projects (name, color, client) VALUES (?, ?, ?)"
+  "INSERT INTO projects (name, description, color, default_value_category, client) VALUES (?, ?, ?, ?, ?)"
 );
 const stmtUpdateProject = db.prepare(
-  "UPDATE projects SET name = ?, color = ?, client = ?, active = ? WHERE id = ?"
+  "UPDATE projects SET name = ?, description = ?, color = ?, default_value_category = ?, client = ?, active = ? WHERE id = ?"
 );
 const stmtGetActiveProjects = db.prepare(
   "SELECT * FROM projects WHERE active = 1 ORDER BY name"
 );
 const stmtGetAllProjects = db.prepare("SELECT * FROM projects ORDER BY name");
 
-function createProject(name, color, client) {
-  const result = stmtCreateProject.run(name, color || "#c44d2b", client || "");
+function createProject(name, color, client, description, defaultValueCategory) {
+  const result = stmtCreateProject.run(name, description || "", color || "#c44d2b", defaultValueCategory || "", client || "");
   return result.lastInsertRowid;
 }
 
-function updateProject(id, name, color, client, active) {
-  return stmtUpdateProject.run(name, color, client, active ? 1 : 0, id);
+function updateProject(id, name, description, color, defaultValueCategory, client, active) {
+  return stmtUpdateProject.run(name, description || "", color, defaultValueCategory || "", client || "", active ? 1 : 0, id);
 }
 
 function getActiveProjects() {
@@ -289,6 +302,31 @@ function getWeekSummary() {
   return stmtWeekSummary.all();
 }
 
+// --- Calendar (month view) ---
+
+const stmtCalendar = db.prepare(`
+  SELECT
+    d.date,
+    d.total_points,
+    d.day_xp,
+    d.effective_xp,
+    d.streak_day,
+    COUNT(DISTINCT p.id) AS pom_count,
+    COALESCE(SUM(p.biz_rating), 0) AS biz_rating_sum,
+    COALESCE(SUM(p.energy_rating), 0) AS energy_sum,
+    COUNT(DISTINCT m.id) AS move_count
+  FROM days d
+  LEFT JOIN pomodoros p ON p.day_id = d.id AND p.completed_at IS NOT NULL
+  LEFT JOIN movements m ON m.day_id = d.id
+  WHERE d.date BETWEEN ? AND ?
+  GROUP BY d.id
+  ORDER BY d.date
+`);
+
+function getCalendar(startDate, endDate) {
+  return stmtCalendar.all(startDate, endDate);
+}
+
 // --- Recent days ---
 
 const stmtRecentDays = db.prepare(
@@ -319,5 +357,6 @@ module.exports = {
   upsertGamification,
   getGamificationHistory,
   getWeekSummary,
+  getCalendar,
   getRecentDays,
 };

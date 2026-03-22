@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import HealthTracker from "./HealthTracker.jsx";
 import Dashboard from "./Dashboard.jsx";
+import ProjectSettings from "./ProjectSettings.jsx";
 import { useSettings } from "./useSettings.js";
 
 const LIGHT = {
@@ -119,11 +120,16 @@ export default function App() {
         <TimerBanner timerInfo={globalTimer} onClickBack={() => setView("timer")} />
       )}
 
-      {view === "dashboard" ? (
+      {view === "dashboard" && (
         <Dashboard onBack={() => setView("timer")} theme={theme} settings={settings} onSettingsChange={updateSettings} />
-      ) : (
+      )}
+      {view === "projects" && (
+        <ProjectSettings onBack={() => setView("timer")} theme={theme} />
+      )}
+      {view === "timer" && (
         <HealthTracker
           onDashboard={() => setView("dashboard")}
+          onProjects={() => setView("projects")}
           theme={theme}
           settings={settings}
           onSettingsChange={updateSettings}
