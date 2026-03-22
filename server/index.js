@@ -114,17 +114,17 @@ app.post("/api/movements", (req, res) => {
   res.json({ id });
 });
 
-// Update day points
+// Update day points/XP
 app.patch("/api/days/:id/points", (req, res) => {
-  const { total_points, streak_day, rank_level } = req.body;
-  db.updateDayPoints(req.params.id, total_points, streak_day, rank_level);
+  const { total_points, day_xp, effective_xp, streak_day, rank_level } = req.body;
+  db.updateDayPoints(req.params.id, total_points, day_xp || 0, effective_xp || 0, streak_day, rank_level);
   res.json({ ok: true });
 });
 
 // Gamification upsert
 app.put("/api/gamification", (req, res) => {
-  const { date, cumulative_points, current_rank, streak_length, level_change } = req.body;
-  db.upsertGamification(date, cumulative_points, current_rank, streak_length, level_change);
+  const { date, cumulative_points, cumulative_xp, current_rank, streak_length, level_change } = req.body;
+  db.upsertGamification(date, cumulative_points || 0, cumulative_xp || 0, current_rank, streak_length, level_change);
   res.json({ ok: true });
 });
 

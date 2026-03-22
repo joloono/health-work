@@ -202,8 +202,14 @@ function Wochenüberblick({ weekData }) {
     isToday: d.date === today,
   }));
 
-  const pointsData = weekData.map((d) => ({
-    value: d.total_points,
+  const xpData = weekData.map((d) => ({
+    value: d.effective_xp || 0,
+    label: dayNames[new Date(d.date).getDay()],
+    isToday: d.date === today,
+  }));
+
+  const streakData = weekData.map((d) => ({
+    value: d.streak_day || 0,
     label: dayNames[new Date(d.date).getDay()],
     isToday: d.date === today,
   }));
@@ -211,9 +217,10 @@ function Wochenüberblick({ weekData }) {
   return (
     <div>
       <BarChart data={pomData} maxValue={16} label="Pomodoros pro Tag" color="var(--accent)" />
+      <BarChart data={xpData} maxValue={null} label="XP pro Tag (mit Streak-Bonus)" color="var(--accent)" />
       <BarChart data={moveData} maxValue={null} label="Bewegungsminuten pro Tag" color="var(--done)" />
       <BarChart data={bizData} maxValue={4} label="Durchschn. Geschäftswert" color="var(--accent)" />
-      <BarChart data={pointsData} maxValue={120} label="Punkte pro Tag" color="var(--done)" />
+      <BarChart data={streakData} maxValue={null} label="Streak-Verlauf" color="var(--done)" />
     </div>
   );
 }

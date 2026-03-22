@@ -72,10 +72,10 @@ export const api = {
     }),
 
   // Day points & gamification
-  updateDayPoints: (dayId, totalPoints, streakDay, rankLevel) =>
+  updateDayPoints: (dayId, totalPoints, dayXP, effectiveXP, streakDay, rankLevel) =>
     request(`/api/days/${dayId}/points`, {
       method: "PATCH",
-      body: JSON.stringify({ total_points: totalPoints, streak_day: streakDay, rank_level: rankLevel }),
+      body: JSON.stringify({ total_points: totalPoints, day_xp: dayXP, effective_xp: effectiveXP, streak_day: streakDay, rank_level: rankLevel }),
     }),
 
   upsertGamification: (data) =>

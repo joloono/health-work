@@ -1,3 +1,5 @@
+// ===== RANKS (30 Greek-antiquity ranks) =====
+
 export const RANKS = [
   { level: 1, name: "Néos", title: "Neuling" },
   { level: 2, name: "Néos Dókimos", title: "Bewährter Neuling" },
@@ -36,10 +38,37 @@ export function getRank(level) {
   return RANKS[clamped - 1];
 }
 
-// Points: 1 per pom, 2 per movement, + sum of biz_ratings
-// Max: 16 + 20*2 + 64 = 120
-export function calcDayPoints(pomCount, moveCount, bizRatingSum) {
-  return pomCount + moveCount * 2 + bizRatingSum;
+// ===== PRINZIP 1: XP for Actions =====
+
+export const XP_VALUES = {
+  pomodoro: 10,
+  movement: 20,
+  bizRatingBonus: 5,   // per biz_rating point (1-4)
+  energyBonus: 3,      // per positive energy point
+  retroPomodoro: 8,
+};
+
+export function calcDayXP(pomCount, moveCount, bizRatingSum, energySum, retroCount = 0) {
+  const liveXP = (pomCount - retroCount) * XP_VALUES.pomodoro
+               + retroCount * XP_VALUES.retroPomodoro;
+  const moveXP = moveCount * XP_VALUES.movement;
+  const bizXP = bizRatingSum * XP_VALUES.bizRatingBonus;
+  const energyXP = Math.max(0, energySum) * XP_VALUES.energyBonus;
+  return liveXP + moveXP + bizXP + energyXP;
+}
+
+// ===== PRINZIP 2: Streak Multiplier =====
+
+export function getStreakMultiplier(streakDays) {
+  if (streakDays >= 30) return 1.5;
+  if (streakDays >= 14) return 1.35;
+  if (streakDays >= 7) return 1.25;
+  if (streakDays >= 3) return 1.1;
+  return 1.0;
+}
+
+export function calcEffectiveXP(dayXP, streakDays) {
+  return Math.round(dayXP * getStreakMultiplier(streakDays));
 }
 
 // Streak: day counts if at least 1 pom + 1 movement
@@ -47,35 +76,44 @@ export function dayCountsForStreak(pomCount, moveCount) {
   return pomCount >= 1 && moveCount >= 1;
 }
 
-// Level-up threshold: need 3 consecutive streak days with avg >= threshold
-// Progressive: base 40 pts/day, +3 per rank above 5 (scaled for max 120)
-export function getLevelUpThreshold(currentRank) {
-  if (currentRank <= 5) return 40;
-  return 40 + (currentRank - 5) * 3;
+// ===== PRINZIP 3: Soft Streak Decay =====
+
+export function decayStreak(currentStreak, inactiveDays) {
+  if (inactiveDays <= 1) return currentStreak; // Gnadetag
+  let s = currentStreak;
+  for (let d = 2; d <= inactiveDays; d++) {
+    s = Math.floor(s / 2);
+  }
+  return Math.max(0, s);
 }
 
-// Calculate new rank based on gamification history
-// history: array of recent day records [{date, points, hadStreak}], newest first
-export function calculateRankChange(currentRank, streakLength, recentDayPoints) {
-  // Level loss: 2+ days inactive -> drop 1 rank (minimum 1)
-  // This is handled by checking if today has no activity and yesterday had none
-  // The caller passes inactiveDays count
+// ===== PRINZIP 4: Progressive XP Leveling =====
 
-  // Level up: streak >= 3 and avg of last 3 days >= threshold
-  if (streakLength >= 3 && recentDayPoints.length >= 3) {
-    const last3Avg = recentDayPoints.slice(0, 3).reduce((a, b) => a + b, 0) / 3;
-    const threshold = getLevelUpThreshold(currentRank);
-    if (last3Avg >= threshold && currentRank < 30) {
-      return { newRank: currentRank + 1, change: "up" };
-    }
-  }
-
-  return { newRank: currentRank, change: "none" };
+export function xpForLevel(level) {
+  return 500 * level * (level + 1) / 2;
 }
 
-export function calculateLevelLoss(currentRank, inactiveDays) {
-  if (inactiveDays >= 2 && currentRank > 1) {
-    return { newRank: currentRank - 1, change: "down" };
-  }
-  return { newRank: currentRank, change: "none" };
+export function getLevelFromXP(totalXP) {
+  let level = 1;
+  while (level < 30 && xpForLevel(level) <= totalXP) level++;
+  return level;
+}
+
+export function getLevelProgress(totalXP) {
+  const level = getLevelFromXP(totalXP);
+  if (level >= 30) return { level: 30, current: totalXP, needed: xpForLevel(29), progress: 1 };
+  const prevThreshold = level > 1 ? xpForLevel(level - 1) : 0;
+  const nextThreshold = xpForLevel(level);
+  const progress = nextThreshold > prevThreshold
+    ? (totalXP - prevThreshold) / (nextThreshold - prevThreshold)
+    : 0;
+  return { level, current: totalXP, needed: nextThreshold, prevNeeded: prevThreshold, progress: Math.min(1, Math.max(0, progress)) };
+}
+
+// ===== PRINZIP 5: XP Decay =====
+
+export function calcXPDecay(cumulativeXP, inactiveDays) {
+  if (inactiveDays <= 1) return 0;
+  const rate = Math.min(0.10, 0.02 * (inactiveDays - 1));
+  return Math.round(cumulativeXP * rate);
 }

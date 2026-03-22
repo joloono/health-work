@@ -20,6 +20,8 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     date TEXT UNIQUE NOT NULL,
     total_points INTEGER DEFAULT 0,
+    day_xp INTEGER DEFAULT 0,
+    effective_xp INTEGER DEFAULT 0,
     streak_day INTEGER DEFAULT 0,
     rank_level INTEGER DEFAULT 1
   );
@@ -62,6 +64,7 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     date TEXT UNIQUE NOT NULL,
     cumulative_points INTEGER DEFAULT 0,
+    cumulative_xp INTEGER DEFAULT 0,
     current_rank INTEGER DEFAULT 1,
     streak_length INTEGER DEFAULT 0,
     level_change TEXT DEFAULT 'none' CHECK(level_change IN ('up', 'down', 'none'))
@@ -90,12 +93,32 @@ try {
   }
 } catch {}
 
+// Migrate days table
+try {
+  const dayCols = db.pragma("table_info(days)").map((c) => c.name);
+  if (!dayCols.includes("day_xp")) {
+    db.exec("ALTER TABLE days ADD COLUMN day_xp INTEGER DEFAULT 0");
+  }
+  if (!dayCols.includes("effective_xp")) {
+    db.exec("ALTER TABLE days ADD COLUMN effective_xp INTEGER DEFAULT 0");
+  }
+} catch {}
+
+// Migrate gamification table
+try {
+  const gamCols = db.pragma("table_info(gamification)").map((c) => c.name);
+  if (!gamCols.includes("cumulative_xp")) {
+    db.exec("ALTER TABLE gamification ADD COLUMN cumulative_xp INTEGER DEFAULT 0");
+    db.exec("UPDATE gamification SET cumulative_xp = cumulative_points * 10");
+  }
+} catch {}
+
 // --- Day operations ---
 
 const stmtGetDay = db.prepare("SELECT * FROM days WHERE date = ?");
 const stmtCreateDay = db.prepare("INSERT OR IGNORE INTO days (date) VALUES (?)");
 const stmtUpdateDayPoints = db.prepare(
-  "UPDATE days SET total_points = ?, streak_day = ?, rank_level = ? WHERE id = ?"
+  "UPDATE days SET total_points = ?, day_xp = ?, effective_xp = ?, streak_day = ?, rank_level = ? WHERE id = ?"
 );
 
 function getDay(date) {
@@ -106,8 +129,8 @@ function createDay(date) {
   return stmtCreateDay.run(date);
 }
 
-function updateDayPoints(id, totalPoints, streakDay, rankLevel) {
-  return stmtUpdateDayPoints.run(totalPoints, streakDay, rankLevel, id);
+function updateDayPoints(id, totalPoints, dayXP, effectiveXP, streakDay, rankLevel) {
+  return stmtUpdateDayPoints.run(totalPoints, dayXP, effectiveXP, streakDay, rankLevel, id);
 }
 
 // --- Project operations ---
@@ -214,10 +237,11 @@ function getMovementsByDay(dayId) {
 
 const stmtGetGamification = db.prepare("SELECT * FROM gamification WHERE date = ?");
 const stmtUpsertGamification = db.prepare(`
-  INSERT INTO gamification (date, cumulative_points, current_rank, streak_length, level_change)
-  VALUES (?, ?, ?, ?, ?)
+  INSERT INTO gamification (date, cumulative_points, cumulative_xp, current_rank, streak_length, level_change)
+  VALUES (?, ?, ?, ?, ?, ?)
   ON CONFLICT(date) DO UPDATE SET
     cumulative_points = excluded.cumulative_points,
+    cumulative_xp = excluded.cumulative_xp,
     current_rank = excluded.current_rank,
     streak_length = excluded.streak_length,
     level_change = excluded.level_change
@@ -230,8 +254,8 @@ function getGamification(date) {
   return stmtGetGamification.get(date);
 }
 
-function upsertGamification(date, cumulativePoints, currentRank, streakLength, levelChange) {
-  return stmtUpsertGamification.run(date, cumulativePoints, currentRank, streakLength, levelChange);
+function upsertGamification(date, cumulativePoints, cumulativeXP, currentRank, streakLength, levelChange) {
+  return stmtUpsertGamification.run(date, cumulativePoints, cumulativeXP, currentRank, streakLength, levelChange);
 }
 
 function getGamificationHistory(days) {
@@ -244,6 +268,8 @@ const stmtWeekSummary = db.prepare(`
   SELECT
     d.date,
     d.total_points,
+    d.day_xp,
+    d.effective_xp,
     d.streak_day,
     d.rank_level,
     COUNT(DISTINCT p.id) AS pom_count,

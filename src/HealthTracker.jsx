@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { api } from "./api.js";
-import { getRank, calcDayPoints, dayCountsForStreak, calculateRankChange } from "./gamification.js";
+import { getRank, calcDayXP, calcEffectiveXP, getStreakMultiplier, dayCountsForStreak, getLevelFromXP, getLevelProgress, xpForLevel } from "./gamification.js";
 import { playNotificationSound } from "./useSettings.js";
 
 const QUICK_MOVES = [
@@ -963,21 +963,8 @@ export default function HealthTracker({ onDashboard, theme, settings, onSettings
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  const persistGamification = useCallback(async (pts, pomCount, moveCount) => {
-    if (!dayData || !gamification) return;
-    const today = new Date().toISOString().slice(0, 10);
-    const prev = gamification.current;
-    const streak = dayCountsForStreak(pomCount, moveCount)
-      ? (prev.streak_length || 0) + (prev.date === today ? 0 : 1) || 1
-      : prev.streak_length || 0;
-    const cumPts = (prev.cumulative_points || 0) + pts - (dayData.day.total_points || 0);
-    const recentPoints = gamification.history.map((h) => h.cumulative_points);
-    const { newRank, change } = calculateRankChange(prev.current_rank || 1, streak, [pts, ...recentPoints]);
-    await Promise.all([
-      api.updateDayPoints(dayData.day.id, pts, streak, newRank),
-      api.upsertGamification({ date: today, cumulative_points: cumPts, current_rank: newRank, streak_length: streak, level_change: change }),
-    ]);
-  }, [dayData, gamification]);
+  // Persist is not called automatically yet — we compute and display live
+  // The actual persistence happens when data changes via loadData
 
   // Gap detection: >30 min since last completed pomodoro
   const [gapDismissed, setGapDismissed] = useState(false);
@@ -995,11 +982,18 @@ export default function HealthTracker({ onDashboard, theme, settings, onSettings
   const totalMini = blocks.reduce((s, b) => s + b.miniMoves.filter(Boolean).length, 0);
   const totalBlock = blocks.filter((b) => b.blockMove).length;
   const totalBizRating = blocks.reduce((s, b) => s + b.bizRatings.reduce((sum, r) => sum + (r || 0), 0), 0);
+  const totalEnergy = blocks.reduce((s, b) => s + b.energyRatings.reduce((sum, r) => sum + (r || 0), 0), 0);
+  const totalRetro = (dayData.pomodoros || []).filter((p) => p.retroactive).length;
   const allDone = activeBlock === -1;
-  const points = calcDayPoints(totalPom, totalMini + totalBlock, totalBizRating);
 
-  const currentRank = gamification?.current?.current_rank || 1;
+  // XP system
+  const dayXP = calcDayXP(totalPom, totalMini + totalBlock, totalBizRating, totalEnergy, totalRetro);
   const streak = gamification?.current?.streak_length || 0;
+  const streakMult = getStreakMultiplier(streak);
+  const effectiveXP = calcEffectiveXP(dayXP, streak);
+  const cumulativeXP = (gamification?.current?.cumulative_xp || 0) + effectiveXP - (dayData.day.effective_xp || 0);
+  const levelProgress = getLevelProgress(cumulativeXP);
+  const currentRank = levelProgress.level;
   const rank = getRank(currentRank);
 
   return (
@@ -1053,15 +1047,30 @@ export default function HealthTracker({ onDashboard, theme, settings, onSettings
         background: "linear-gradient(135deg, rgba(196,77,43,0.08), rgba(45,138,78,0.08))",
         borderRadius: 10, border: "1px solid var(--border)",
       }}>
-        <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: "0.6rem", color: "var(--fg-dim)", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600 }}>Rang {currentRank}/30</div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: "0.55rem", color: "var(--fg-dim)", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600 }}>Rang {currentRank}/30</div>
           <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "1rem", fontWeight: 700, color: "var(--accent)" }}>{rank.name}</div>
-          <div style={{ fontSize: "0.62rem", color: "var(--fg-dim)" }}>{rank.title}</div>
+          {/* XP Progress Bar */}
+          <div style={{ marginTop: "0.3rem" }}>
+            <div style={{ height: 4, borderRadius: 2, background: "var(--border)", overflow: "hidden" }}>
+              <div style={{ height: "100%", width: `${levelProgress.progress * 100}%`, background: "var(--accent)", borderRadius: 2, transition: "width 0.3s ease" }} />
+            </div>
+            <div style={{ fontSize: "0.5rem", color: "var(--fg-dim)", marginTop: "0.1rem" }}>
+              {cumulativeXP.toLocaleString("de-CH")} / {levelProgress.needed.toLocaleString("de-CH")} XP
+            </div>
+          </div>
         </div>
-        <div style={{ width: 1, height: 32, background: "var(--border)" }} />
-        <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: "0.6rem", color: "var(--fg-dim)", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600 }}>Streak</div>
-          <div style={{ fontSize: "1.2rem", fontWeight: 700, color: streak > 0 ? "var(--done)" : "var(--fg-dim)" }}>{streak} {streak === 1 ? "Tag" : "Tage"}</div>
+        <div style={{ width: 1, height: 40, background: "var(--border)" }} />
+        <div style={{ textAlign: "right" }}>
+          <div style={{ fontSize: "0.55rem", color: "var(--fg-dim)", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600 }}>Streak</div>
+          <div style={{ fontSize: "1.1rem", fontWeight: 700, color: streak > 0 ? "var(--done)" : "var(--fg-dim)" }}>
+            {streak} {streak === 1 ? "Tag" : "Tage"}
+          </div>
+          {streakMult > 1 && (
+            <div style={{ fontSize: "0.55rem", color: "var(--done)", fontWeight: 600 }}>
+              {streakMult}x XP
+            </div>
+          )}
         </div>
       </div>
 
@@ -1080,8 +1089,8 @@ export default function HealthTracker({ onDashboard, theme, settings, onSettings
           <div style={{ fontSize: "0.62rem", color: "var(--fg-dim)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Pausen</div>
         </div>
         <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: "1.3rem", fontWeight: 700, color: points > 0 ? "var(--accent)" : "var(--fg-dim)" }}>{points}</div>
-          <div style={{ fontSize: "0.62rem", color: "var(--fg-dim)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Punkte</div>
+          <div style={{ fontSize: "1.3rem", fontWeight: 700, color: effectiveXP > 0 ? "var(--accent)" : "var(--fg-dim)" }}>{effectiveXP}</div>
+          <div style={{ fontSize: "0.62rem", color: "var(--fg-dim)", textTransform: "uppercase", letterSpacing: "0.08em" }}>XP</div>
         </div>
       </div>
 
