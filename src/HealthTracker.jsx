@@ -325,8 +325,54 @@ function DayLog({ entries, movements }) {
     ...movements.map((m) => ({ ...m, _type: "move", _time: m.completed_at })),
   ].sort((a, b) => (a._time || "").localeCompare(b._time || ""));
 
+  // Daily goal: 8 pomodoro-equivalents = 200 min
+  const DAILY_GOAL = 200;
+  const SLOTS = 8;
+  const filledSlots = Math.min(SLOTS, Math.floor(totalMin / 25));
+  const goalPct = Math.min(100, (totalMin / DAILY_GOAL) * 100);
+  const goalReached = totalMin >= DAILY_GOAL;
+  const bonusSlots = Math.max(0, Math.floor(totalMin / 25) - SLOTS);
+
   return (
     <div>
+      {/* Daily progress bar */}
+      <div style={{ marginBottom: "0.8rem" }}>
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: "0.25rem" }}>
+          <span style={{ fontSize: "0.65rem", fontWeight: 600, color: goalReached ? "var(--done)" : "var(--fg-dim)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            {goalReached ? "Tagesziel erreicht!" : "Tagesziel"}
+          </span>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "0.65rem", fontWeight: 700, color: goalReached ? "var(--done)" : "var(--accent)" }}>
+            {totalMin} / {DAILY_GOAL} min
+          </span>
+        </div>
+        {/* Segmented bar: 8 slots */}
+        <div style={{ display: "flex", gap: 3, height: 12 }}>
+          {Array.from({ length: SLOTS }, (_, i) => {
+            const filled = i < filledSlots;
+            const isNext = i === filledSlots;
+            const partialPct = isNext ? ((totalMin % 25) / 25) * 100 : 0;
+            return (
+              <div key={i} style={{
+                flex: 1, borderRadius: 3, background: "var(--border)", overflow: "hidden", position: "relative",
+              }}>
+                <div style={{
+                  height: "100%", borderRadius: 3,
+                  width: filled ? "100%" : isNext ? `${partialPct}%` : "0%",
+                  background: goalReached ? "var(--done)" : "var(--accent)",
+                  transition: "width 0.3s ease",
+                }} />
+              </div>
+            );
+          })}
+        </div>
+        {/* Bonus indicator */}
+        {bonusSlots > 0 && (
+          <div style={{ fontSize: "0.55rem", color: "var(--done)", fontWeight: 600, marginTop: "0.2rem", textAlign: "right" }}>
+            +{bonusSlots} Bonus {bonusSlots === 1 ? "Einheit" : "Einheiten"}
+          </div>
+        )}
+      </div>
+
       {/* Summary */}
       <div style={{ display: "flex", gap: "0.3rem", padding: "0.6rem 0.4rem", marginBottom: "0.8rem", background: "var(--muted)", borderRadius: 8 }}>
         <div style={{ flex: 1, textAlign: "center" }}>
