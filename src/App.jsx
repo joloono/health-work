@@ -83,30 +83,40 @@ const NAV_ITEMS = [
   { id: "categories", label: "🏷️ Kategorien" },
 ];
 
-function FooterNav({ view, setView, settings, onSettingsChange }) {
+function TopNav({ view, setView, settings, onSettingsChange }) {
   return (
     <div style={{
-      display: "flex", flexWrap: "wrap", justifyContent: "center", alignItems: "center",
-      gap: "0.35rem", padding: "1rem 0 0.5rem",
-      maxWidth: 480, margin: "0 auto",
+      position: "sticky", top: 0, zIndex: 90, background: "var(--bg)",
+      borderBottom: "1px solid var(--border)",
+      padding: "0.4rem 0.8rem",
     }}>
-      {NAV_ITEMS.map((item) => (
-        <button key={item.id} onClick={() => setView(item.id)} className="btn-interactive" style={{
-          ...footerBtn,
-          background: view === item.id ? "var(--accent)" : "transparent",
-          color: view === item.id ? "#fff" : "var(--fg-dim)",
-          border: view === item.id ? "1px solid var(--accent)" : "1px solid var(--border)",
-          fontWeight: view === item.id ? 700 : 500,
+      <div style={{
+        display: "flex", alignItems: "center", gap: "0.25rem",
+        maxWidth: 800, margin: "0 auto",
+      }}>
+        {NAV_ITEMS.map((item) => (
+          <button key={item.id} onClick={() => setView(item.id)} className="btn-interactive" style={{
+            background: view === item.id ? "var(--accent)" : "transparent",
+            color: view === item.id ? "#fff" : "var(--fg-dim)",
+            border: "none", borderRadius: 6,
+            padding: "0.35rem 0.6rem", fontSize: "0.68rem", fontWeight: view === item.id ? 700 : 500,
+            cursor: "pointer", fontFamily: "inherit",
+          }}>
+            {item.label}
+          </button>
+        ))}
+        <div style={{ flex: 1 }} />
+        <button onClick={() => onSettingsChange({ soundEnabled: !settings.soundEnabled })} className="btn-interactive" style={{
+          background: "transparent", border: "none", fontSize: "0.78rem", cursor: "pointer", padding: "0.3rem",
         }}>
-          {item.label}
+          {settings.soundEnabled ? "🔊" : "🔇"}
         </button>
-      ))}
-      <button onClick={() => onSettingsChange({ darkMode: !settings.darkMode })} className="btn-interactive" style={footerBtn}>
-        {settings.darkMode ? "☀️" : "🌙"}
-      </button>
-      <button onClick={() => onSettingsChange({ soundEnabled: !settings.soundEnabled })} className="btn-interactive" style={footerBtn}>
-        {settings.soundEnabled ? "🔊" : "🔇"}
-      </button>
+        <button onClick={() => onSettingsChange({ darkMode: !settings.darkMode })} className="btn-interactive" style={{
+          background: "transparent", border: "none", fontSize: "0.78rem", cursor: "pointer", padding: "0.3rem",
+        }}>
+          {settings.darkMode ? "☀️" : "🌙"}
+        </button>
+      </div>
     </div>
   );
 }
@@ -140,6 +150,9 @@ export default function App() {
         input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
       `}</style>
 
+      {/* Top navigation */}
+      <TopNav view={view} setView={setView} settings={settings} onSettingsChange={updateSettings} />
+
       {/* Timer banner on non-timer views */}
       {view !== "timer" && <TimerBanner timerInfo={globalTimer} onClick={() => setView("timer")} />}
 
@@ -156,9 +169,6 @@ export default function App() {
       {view === "categories" && (
         <CategorySettings theme={theme} />
       )}
-
-      {/* Global footer navigation */}
-      <FooterNav view={view} setView={setView} settings={settings} onSettingsChange={updateSettings} />
     </div>
   );
 }

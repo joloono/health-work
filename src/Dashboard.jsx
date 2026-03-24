@@ -50,7 +50,7 @@ function Tageslog({ dayData }) {
   if (!completed.length && !movements.length) return <Empty text="Noch keine Aktivitäten heute. Starte deinen ersten Pomodoro!" />;
 
   const totalPom = completed.length;
-  const totalMin = totalPom * 25;
+  const totalMin = completed.reduce((s, p) => s + (p.duration_minutes || 25), 0);
   const totalBiz = completed.reduce((s, p) => s + (p.biz_rating || 0), 0);
   const totalEnergy = completed.reduce((s, p) => s + (p.energy_rating || 0), 0);
   const avgBiz = totalPom > 0 ? (totalBiz / totalPom).toFixed(1) : "–";
@@ -111,7 +111,7 @@ function Tageslog({ dayData }) {
                         {ev.project_name}
                       </span>
                     )}
-                    <span style={{ fontSize: "0.55rem", color: "var(--fg-dim)" }}>Block {["I","II","III","IV"][ev.block_index]}.{ev.pom_index + 1}</span>
+                    <span style={{ fontSize: "0.55rem", color: "var(--fg-dim)" }}>{{"pomodoro":"🎯","meeting":"👥","walk":"🚶","recreation":"☕","eating":"🍽️","note":"📝"}[ev.entry_type] || "🎯"} {ev.duration_minutes || 25}min</span>
                     {ev.retroactive ? <span style={{ fontSize: "0.5rem", color: "var(--fg-dim)", fontStyle: "italic" }}>retro</span> : null}
                   </div>
                   <div style={{ fontSize: "0.78rem", fontWeight: 500, lineHeight: 1.35 }}>{ev.intention}</div>
@@ -265,6 +265,7 @@ function Wochenüberblick({ weekData }) {
 
   // Aggregates
   const totalPom = weekData.reduce((s, d) => s + d.pom_count, 0);
+  const totalMin = weekData.reduce((s, d) => s + (d.total_minutes || d.pom_count * 25), 0);
   const totalXP = weekData.reduce((s, d) => s + (d.effective_xp || 0), 0);
   const totalMove = weekData.reduce((s, d) => s + Math.round(d.move_seconds / 60), 0);
   const maxStreak = Math.max(...weekData.map((d) => d.streak_day || 0));
@@ -283,7 +284,7 @@ function Wochenüberblick({ weekData }) {
         background: "var(--muted)", borderRadius: 10,
       }}>
         <StatCard value={fmt(totalXP)} label="XP" color="var(--accent)" />
-        <StatCard value={totalPom} label="Pomodoros" sub={`${totalPom * 25} min`} />
+        <StatCard value={totalMin} label="Fokuszeit" sub={`${totalPom} Einträge`} />
         <StatCard value={`${totalMove}`} label="Bewegung" sub="Minuten" color="var(--done)" />
         <StatCard value={maxStreak} label="Streak" sub="Tage" color={maxStreak > 0 ? "var(--done)" : "var(--fg-dim)"} />
       </div>

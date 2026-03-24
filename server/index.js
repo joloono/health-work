@@ -51,7 +51,9 @@ app.get("/api/today", (req, res) => {
   const gamification = db.getGamification(today);
   const lastCompleted = db.getLastCompletedTime(day.id);
   const streakLength = db.calcStreakLength(today);
-  res.json({ day, pomodoros, movements, gamification, lastCompleted, streakLength });
+  const todos = db.getTodosByDay(day.id);
+  const openTodosYesterday = db.getOpenTodosFromYesterday(today);
+  res.json({ day, pomodoros, movements, gamification, lastCompleted, streakLength, todos, openTodosYesterday });
 });
 
 // --- Categories ---
@@ -97,8 +99,8 @@ app.patch("/api/projects/:id", (req, res) => {
 // --- Pomodoros ---
 
 app.post("/api/pomodoros", (req, res) => {
-  const { day_id, block_index, pom_index, intention, value_tags, project_id } = req.body;
-  const id = db.createPomodoro(day_id, block_index, pom_index, intention, value_tags, project_id);
+  const { day_id, block_index, pom_index, intention, value_tags, project_id, entry_type, duration_minutes, notes } = req.body;
+  const id = db.createPomodoro(day_id, block_index || 0, pom_index || 0, intention, value_tags, project_id, entry_type, duration_minutes, notes);
   res.json({ id });
 });
 
@@ -172,6 +174,26 @@ app.get("/api/calendar", (req, res) => {
   const endDate = `${month}-${String(lastDay).padStart(2, "0")}`;
   const data = db.getCalendar(startDate, endDate);
   res.json(data);
+});
+
+// --- Todos ---
+
+app.post("/api/todos", (req, res) => {
+  const { day_id, text, sort_order, carried_from_id } = req.body;
+  if (!text) return res.status(400).json({ error: "text required" });
+  const id = db.createTodo(day_id, text, sort_order, carried_from_id);
+  res.json({ id });
+});
+
+app.patch("/api/todos/:id/toggle", (req, res) => {
+  const { done } = req.body;
+  db.toggleTodo(req.params.id, done);
+  res.json({ ok: true });
+});
+
+app.delete("/api/todos/:id", (req, res) => {
+  db.deleteTodo(req.params.id);
+  res.json({ ok: true });
 });
 
 // Get recent days for streak calculation

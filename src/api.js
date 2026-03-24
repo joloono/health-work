@@ -50,11 +50,17 @@ export const api = {
   updateProject: (id, data) =>
     request(`/api/projects/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
 
-  // Pomodoros
-  createPomodoro: (dayId, blockIndex, pomIndex, intention, valueTags, projectId) =>
+  // Pomodoros / Entries
+  createPomodoro: (dayId, blockIndex, pomIndex, intention, valueTags, projectId, entryType, durationMinutes, notes) =>
     request("/api/pomodoros", {
       method: "POST",
-      body: JSON.stringify({ day_id: dayId, block_index: blockIndex, pom_index: pomIndex, intention, value_tags: valueTags, project_id: projectId }),
+      body: JSON.stringify({ day_id: dayId, block_index: blockIndex || 0, pom_index: pomIndex || 0, intention, value_tags: valueTags, project_id: projectId, entry_type: entryType, duration_minutes: durationMinutes, notes }),
+    }),
+
+  createEntry: (dayId, intention, { entryType = "pomodoro", durationMinutes = 25, projectId, valueTags, notes } = {}) =>
+    request("/api/pomodoros", {
+      method: "POST",
+      body: JSON.stringify({ day_id: dayId, block_index: 0, pom_index: 0, intention, value_tags: valueTags || [], project_id: projectId, entry_type: entryType, duration_minutes: durationMinutes, notes }),
     }),
 
   completePomodoro: (id) =>
@@ -98,4 +104,12 @@ export const api = {
   getCalendar: (month) => request(`/api/calendar?month=${month || new Date().toISOString().slice(0, 7)}`),
 
   getRecentDays: (count = 7) => request(`/api/days/recent?count=${count}`),
+
+  // Todos
+  createTodo: (dayId, text, sortOrder, carriedFromId) =>
+    request("/api/todos", { method: "POST", body: JSON.stringify({ day_id: dayId, text, sort_order: sortOrder, carried_from_id: carriedFromId }) }),
+  toggleTodo: (id, done) =>
+    request(`/api/todos/${id}/toggle`, { method: "PATCH", body: JSON.stringify({ done }) }),
+  deleteTodo: (id) =>
+    request(`/api/todos/${id}`, { method: "DELETE" }),
 };

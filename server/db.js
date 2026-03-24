@@ -137,6 +137,34 @@ try {
   }
 } catch {}
 
+// Migrate pomodoros: add flexible entry columns
+try {
+  const pomCols = db.pragma("table_info(pomodoros)").map((c) => c.name);
+  if (!pomCols.includes("entry_type")) {
+    db.exec("ALTER TABLE pomodoros ADD COLUMN entry_type TEXT DEFAULT 'pomodoro'");
+  }
+  if (!pomCols.includes("duration_minutes")) {
+    db.exec("ALTER TABLE pomodoros ADD COLUMN duration_minutes INTEGER DEFAULT 25");
+  }
+  if (!pomCols.includes("notes")) {
+    db.exec("ALTER TABLE pomodoros ADD COLUMN notes TEXT DEFAULT ''");
+  }
+} catch {}
+
+// Create todos table
+db.exec(`
+  CREATE TABLE IF NOT EXISTS todos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    day_id INTEGER NOT NULL REFERENCES days(id),
+    text TEXT NOT NULL,
+    done INTEGER DEFAULT 0,
+    sort_order INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now')),
+    completed_at TEXT,
+    carried_from_id INTEGER
+  );
+`);
+
 // Seed default categories if table is empty
 try {
   const catCount = db.prepare("SELECT COUNT(*) as c FROM categories").get().c;
@@ -212,7 +240,7 @@ function getAllProjects() {
 // --- Pomodoro operations ---
 
 const stmtCreatePom = db.prepare(
-  "INSERT INTO pomodoros (day_id, block_index, pom_index, intention, value_tags, project_id) VALUES (?, ?, ?, ?, ?, ?)"
+  "INSERT INTO pomodoros (day_id, block_index, pom_index, intention, value_tags, project_id, entry_type, duration_minutes, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
 );
 const stmtCompletePom = db.prepare(
   "UPDATE pomodoros SET completed_at = datetime('now') WHERE id = ?"
@@ -221,12 +249,12 @@ const stmtRatePom = db.prepare(
   "UPDATE pomodoros SET biz_rating = ?, energy_rating = ? WHERE id = ?"
 );
 const stmtGetPomsByDay = db.prepare(
-  "SELECT p.*, pr.name AS project_name, pr.color AS project_color FROM pomodoros p LEFT JOIN projects pr ON p.project_id = pr.id WHERE p.day_id = ? ORDER BY p.block_index, p.pom_index"
+  "SELECT p.*, pr.name AS project_name, pr.color AS project_color FROM pomodoros p LEFT JOIN projects pr ON p.project_id = pr.id WHERE p.day_id = ? ORDER BY p.started_at"
 );
 
-function createPomodoro(dayId, blockIndex, pomIndex, intention, valueTags, projectId) {
+function createPomodoro(dayId, blockIndex, pomIndex, intention, valueTags, projectId, entryType, durationMinutes, notes) {
   const tags = Array.isArray(valueTags) ? valueTags.join(",") : (valueTags || "");
-  const result = stmtCreatePom.run(dayId, blockIndex, pomIndex, intention, tags, projectId || null);
+  const result = stmtCreatePom.run(dayId, blockIndex || 0, pomIndex || 0, intention, tags, projectId || null, entryType || "pomodoro", durationMinutes || 25, notes || "");
   return result.lastInsertRowid;
 }
 
@@ -318,16 +346,30 @@ const stmtWeekSummary = db.prepare(`
     d.effective_xp,
     d.streak_day,
     d.rank_level,
-    COUNT(DISTINCT p.id) AS pom_count,
-    SUM(CASE WHEN p.value_tags != '' AND p.value_tags IS NOT NULL THEN 1 ELSE 0 END) AS tagged_pom_count,
-    COALESCE(SUM(p.biz_rating), 0) AS biz_rating_sum,
-    COUNT(DISTINCT m.id) AS move_count,
-    COALESCE(SUM(m.duration_seconds), 0) AS move_seconds
+    COALESCE(ps.pom_count, 0) AS pom_count,
+    COALESCE(ps.tagged_pom_count, 0) AS tagged_pom_count,
+    COALESCE(ps.biz_rating_sum, 0) AS biz_rating_sum,
+    COALESCE(ps.total_minutes, 0) AS total_minutes,
+    COALESCE(ms.move_count, 0) AS move_count,
+    COALESCE(ms.move_seconds, 0) AS move_seconds
   FROM days d
-  LEFT JOIN pomodoros p ON p.day_id = d.id AND p.completed_at IS NOT NULL
-  LEFT JOIN movements m ON m.day_id = d.id
+  LEFT JOIN (
+    SELECT day_id,
+      COUNT(*) AS pom_count,
+      SUM(CASE WHEN value_tags != '' AND value_tags IS NOT NULL THEN 1 ELSE 0 END) AS tagged_pom_count,
+      COALESCE(SUM(biz_rating), 0) AS biz_rating_sum,
+      COALESCE(SUM(duration_minutes), 0) AS total_minutes
+    FROM pomodoros WHERE completed_at IS NOT NULL
+    GROUP BY day_id
+  ) ps ON ps.day_id = d.id
+  LEFT JOIN (
+    SELECT day_id,
+      COUNT(*) AS move_count,
+      COALESCE(SUM(duration_seconds), 0) AS move_seconds
+    FROM movements
+    GROUP BY day_id
+  ) ms ON ms.day_id = d.id
   WHERE d.date >= date('now', '-6 days')
-  GROUP BY d.id
   ORDER BY d.date
 `);
 
@@ -344,15 +386,25 @@ const stmtCalendar = db.prepare(`
     d.day_xp,
     d.effective_xp,
     d.streak_day,
-    COUNT(DISTINCT p.id) AS pom_count,
-    COALESCE(SUM(p.biz_rating), 0) AS biz_rating_sum,
-    COALESCE(SUM(p.energy_rating), 0) AS energy_sum,
-    COUNT(DISTINCT m.id) AS move_count
+    COALESCE(ps.pom_count, 0) AS pom_count,
+    COALESCE(ps.biz_rating_sum, 0) AS biz_rating_sum,
+    COALESCE(ps.energy_sum, 0) AS energy_sum,
+    COALESCE(ms.move_count, 0) AS move_count
   FROM days d
-  LEFT JOIN pomodoros p ON p.day_id = d.id AND p.completed_at IS NOT NULL
-  LEFT JOIN movements m ON m.day_id = d.id
+  LEFT JOIN (
+    SELECT day_id,
+      COUNT(*) AS pom_count,
+      COALESCE(SUM(biz_rating), 0) AS biz_rating_sum,
+      COALESCE(SUM(energy_rating), 0) AS energy_sum
+    FROM pomodoros WHERE completed_at IS NOT NULL
+    GROUP BY day_id
+  ) ps ON ps.day_id = d.id
+  LEFT JOIN (
+    SELECT day_id, COUNT(*) AS move_count
+    FROM movements
+    GROUP BY day_id
+  ) ms ON ms.day_id = d.id
   WHERE d.date BETWEEN ? AND ?
-  GROUP BY d.id
   ORDER BY d.date
 `);
 
@@ -377,6 +429,46 @@ function createCategory(slug, label, icon, color, description, sortOrder) {
 
 function updateCategory(id, slug, label, icon, color, description, active, sortOrder) {
   return stmtUpdateCategory.run(slug, label, icon || "", color || "#888", description || "", active ? 1 : 0, sortOrder || 0, id);
+}
+
+// --- Todo operations ---
+
+const stmtCreateTodo = db.prepare(
+  "INSERT INTO todos (day_id, text, sort_order, carried_from_id) VALUES (?, ?, ?, ?)"
+);
+const stmtToggleTodo = db.prepare(
+  "UPDATE todos SET done = ?, completed_at = CASE WHEN ? = 1 THEN datetime('now') ELSE NULL END WHERE id = ?"
+);
+const stmtDeleteTodo = db.prepare("DELETE FROM todos WHERE id = ?");
+const stmtGetTodosByDay = db.prepare(
+  "SELECT * FROM todos WHERE day_id = ? ORDER BY done, sort_order, created_at"
+);
+const stmtGetOpenTodosYesterday = db.prepare(`
+  SELECT t.* FROM todos t
+  JOIN days d ON t.day_id = d.id
+  WHERE d.date = date(?, '-1 day') AND t.done = 0
+  ORDER BY t.sort_order, t.created_at
+`);
+
+function createTodo(dayId, text, sortOrder, carriedFromId) {
+  const result = stmtCreateTodo.run(dayId, text, sortOrder || 0, carriedFromId || null);
+  return result.lastInsertRowid;
+}
+
+function toggleTodo(id, done) {
+  return stmtToggleTodo.run(done ? 1 : 0, done ? 1 : 0, id);
+}
+
+function deleteTodo(id) {
+  return stmtDeleteTodo.run(id);
+}
+
+function getTodosByDay(dayId) {
+  return stmtGetTodosByDay.all(dayId);
+}
+
+function getOpenTodosFromYesterday(today) {
+  return stmtGetOpenTodosYesterday.all(today);
 }
 
 // --- Streak calculation ---
@@ -438,6 +530,11 @@ module.exports = {
   getPomodorosByDay,
   createMovement,
   getMovementsByDay,
+  createTodo,
+  toggleTodo,
+  deleteTodo,
+  getTodosByDay,
+  getOpenTodosFromYesterday,
   getGamification,
   upsertGamification,
   getGamificationHistory,

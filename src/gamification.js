@@ -110,6 +110,55 @@ export function getLevelProgress(totalXP) {
   return { level, current: totalXP, needed: nextThreshold, prevNeeded: prevThreshold, progress: Math.min(1, Math.max(0, progress)) };
 }
 
+// ===== PRINZIP 4b: Flexible Duration-based XP =====
+
+export function xpForEntry(entry) {
+  const { entry_type, duration_minutes, biz_rating, energy_rating, retroactive } = entry;
+  const dur = duration_minutes || 25;
+  const type = entry_type || "pomodoro";
+
+  // Base XP by type and duration
+  let base = 0;
+  if (type === "note" || type === "eating") {
+    base = 0;
+  } else if (type === "recreation" || type === "walk") {
+    base = Math.round(dur * 0.2);
+  } else {
+    // pomodoro, meeting
+    base = retroactive ? Math.round(dur * 8 / 25) : Math.round(dur * 10 / 25);
+  }
+
+  const bizXP = (biz_rating || 0) * XP_VALUES.bizRatingBonus;
+  const energyXP = Math.max(0, energy_rating || 0) * XP_VALUES.energyBonus;
+  return base + bizXP + energyXP;
+}
+
+// Progressive Bonus: ab 240 geloggten Minuten (4h)
+// Jede weitere 25-min-Einheit: +2, +4, +6, ... XP (cap at 480 min = 8h)
+export function progressiveBonus(totalMinutes) {
+  const capped = Math.min(totalMinutes, 480);
+  if (capped <= 240) return 0;
+  const extraUnits = Math.floor((capped - 240) / 25);
+  let bonus = 0;
+  for (let i = 1; i <= extraUnits; i++) bonus += i * 2;
+  return bonus;
+}
+
+export function calcDayXPFlex(entries, moveCount) {
+  let total = 0;
+  let totalMinutes = 0;
+  for (const e of entries) {
+    if (e.completed_at) {
+      total += xpForEntry(e);
+      const t = e.entry_type || "pomodoro";
+      if (t !== "note" && t !== "eating") totalMinutes += (e.duration_minutes || 25);
+    }
+  }
+  total += moveCount * XP_VALUES.movement;
+  total += progressiveBonus(totalMinutes);
+  return { dayXP: total, totalMinutes };
+}
+
 // ===== PRINZIP 5: XP Decay =====
 
 export function calcXPDecay(cumulativeXP, inactiveDays) {
