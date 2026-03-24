@@ -65,7 +65,7 @@ function loadTimer() {
 
 // --- Timer Component (reused, extended with duration prop) ---
 
-function PomodoroTimer({ duration = 1500, onComplete, soundEnabled = true, onTick, intention, timerKey }) {
+function PomodoroTimer({ duration = 1500, onComplete, soundEnabled = true, onTick, intention, timerKey, persist = {} }) {
   const saved = loadTimer();
   const isResume = saved && saved.key === timerKey;
 
@@ -121,14 +121,14 @@ function PomodoroTimer({ duration = 1500, onComplete, soundEnabled = true, onTic
     const left = pauseRemaining || duration;
     const et = Date.now() + left * 1000;
     setEndTime(et); setRunning(true); setPauseRemaining(0);
-    saveTimer({ key: timerKey, endTime: et, paused: false, pauseRemaining: 0, intention });
+    saveTimer({ key: timerKey, endTime: et, paused: false, pauseRemaining: 0, intention, ...persist });
   };
 
   const handlePause = () => {
     clearInterval(ref.current);
     const left = Math.max(0, Math.ceil((endTime - Date.now()) / 1000));
     setRunning(false); setEndTime(null); setPauseRemaining(left); setRemaining(left);
-    saveTimer({ key: timerKey, endTime: null, paused: true, pauseRemaining: left, intention });
+    saveTimer({ key: timerKey, endTime: null, paused: true, pauseRemaining: left, intention, ...persist });
   };
 
   const progress = 1 - remaining / duration;
@@ -554,25 +554,39 @@ export default function HealthTracker({ theme, settings, onSettingsChange }) {
   const [projects, setProjects] = useState([]);
   const [timerInfo, setTimerInfo] = useState(null);
 
-  // Entry flow state
-  const [phase, setPhase] = useState("idle"); // idle, configuring, timer, rating, movement
-  const [entryConfig, setEntryConfig] = useState({
-    intention: "", entryType: "pomodoro", duration: 25, projectId: null, tags: [], notes: "",
+  // Entry flow state — restore from active timer if exists
+  const savedTimer = loadTimer();
+  const [phase, setPhase] = useState(() => {
+    if (savedTimer && (savedTimer.endTime || savedTimer.paused)) return "timer";
+    return "idle";
   });
-  const [currentEntryId, setCurrentEntryId] = useState(null);
+  const [entryConfig, setEntryConfig] = useState(() => {
+    if (savedTimer && (savedTimer.endTime || savedTimer.paused)) {
+      return {
+        intention: savedTimer.intention || "", entryType: savedTimer.entryType || "pomodoro",
+        duration: savedTimer.duration || 25, projectId: null, tags: [], notes: "",
+      };
+    }
+    return { intention: "", entryType: "pomodoro", duration: 25, projectId: null, tags: [], notes: "", logBiz: null, logEnergy: null };
+  });
+  const [currentEntryId, setCurrentEntryId] = useState(() => savedTimer?.entryId || null);
   const [showNotes, setShowNotes] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
   const [showNewProject, setShowNewProject] = useState(false);
+  const [categories, setCategories] = useState([]);
+  const [newCatLabel, setNewCatLabel] = useState("");
+  const [showNewCat, setShowNewCat] = useState(false);
 
   // Mobile tab
   const [mobileTab, setMobileTab] = useState("timer");
 
   const loadData = useCallback(async () => {
     try {
-      const [data, gamHistory, projs] = await Promise.all([
+      const [data, gamHistory, projs, cats] = await Promise.all([
         api.getToday(),
         api.getGamificationHistory(7),
         api.getProjects(),
+        api.getCategories(),
       ]);
       setDayData(data);
       setGamification({
@@ -580,6 +594,7 @@ export default function HealthTracker({ theme, settings, onSettingsChange }) {
         history: gamHistory || [],
       });
       setProjects(projs || []);
+      setCategories(cats || []);
     } catch (e) { console.error("Failed to load:", e); }
     setLoading(false);
   }, []);
@@ -627,26 +642,31 @@ export default function HealthTracker({ theme, settings, onSettingsChange }) {
 
   // --- Action Handlers ---
 
+  // Timer mode: create entry, start timer
   const handleStartEntry = async () => {
     if (!entryConfig.intention.trim()) return;
-    const type = entryConfig.entryType;
-    const dur = entryConfig.duration;
-
     const { id } = await api.createEntry(dayData.day.id, entryConfig.intention.trim(), {
-      entryType: type, durationMinutes: dur, projectId: entryConfig.projectId,
-      valueTags: entryConfig.tags, notes: entryConfig.notes,
+      entryType: entryConfig.entryType, durationMinutes: entryConfig.duration,
+      projectId: entryConfig.projectId, valueTags: entryConfig.tags, notes: entryConfig.notes,
     });
     setCurrentEntryId(id);
+    setPhase("timer");
+  };
 
-    if (TIMER_TYPES.has(type)) {
-      setPhase("timer");
-    } else {
-      // No timer needed — complete immediately
-      await api.completePomodoro(id);
-      await loadData();
-      setPhase("idle");
-      resetConfig();
+  // Log mode: create entry, rate, complete — all at once
+  const handleLogEntry = async () => {
+    if (!entryConfig.intention.trim()) return;
+    const { id } = await api.createEntry(dayData.day.id, entryConfig.intention.trim(), {
+      entryType: entryConfig.entryType, durationMinutes: entryConfig.duration,
+      projectId: entryConfig.projectId, valueTags: entryConfig.tags, notes: entryConfig.notes,
+    });
+    await api.completePomodoro(id);
+    if (entryConfig.logBiz != null || entryConfig.logEnergy != null) {
+      await api.ratePomodoro(id, entryConfig.logBiz || 0, entryConfig.logEnergy || 0);
     }
+    await loadData();
+    setPhase("idle");
+    resetConfig();
   };
 
   const handleTimerComplete = async () => {
@@ -673,7 +693,7 @@ export default function HealthTracker({ theme, settings, onSettingsChange }) {
   };
 
   const resetConfig = () => {
-    setEntryConfig({ intention: "", entryType: "pomodoro", duration: 25, projectId: null, tags: [], notes: "" });
+    setEntryConfig({ intention: "", entryType: "pomodoro", duration: 25, projectId: null, tags: [], notes: "", logBiz: null, logEnergy: null });
     setCurrentEntryId(null);
     setShowNotes(false);
     setShowNewProject(false);
@@ -686,6 +706,15 @@ export default function HealthTracker({ theme, settings, onSettingsChange }) {
     setEntryConfig((c) => ({ ...c, projectId: id }));
     setNewProjectName("");
     setShowNewProject(false);
+    await loadData();
+  };
+
+  const handleCreateCategory = async () => {
+    if (!newCatLabel.trim()) return;
+    const slug = newCatLabel.trim().toLowerCase().replace(/[^a-z0-9äöü]/g, "-").replace(/-+/g, "-");
+    await api.createCategory(slug, newCatLabel.trim(), "", "#908c84", "", categories.length + 1);
+    setNewCatLabel("");
+    setShowNewCat(false);
     await loadData();
   };
 
@@ -739,34 +768,44 @@ export default function HealthTracker({ theme, settings, onSettingsChange }) {
         </div>
       </div>
 
-      {/* PHASE: Idle / Configuring */}
-      {(phase === "idle" || phase === "configuring") && (
+      {/* PHASE: Idle — Mode selection */}
+      {phase === "idle" && (
+        <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem" }}>
+          <button onClick={() => { setPhase("timer_setup"); setEntryConfig((c) => ({ ...c, entryType: "pomodoro", duration: 25 })); }} className="btn-interactive" style={{
+            flex: 1, padding: "1rem 0.8rem", borderRadius: 10, border: "2px solid var(--accent)",
+            background: "var(--card-bg)", cursor: "pointer", fontFamily: "inherit",
+            display: "flex", flexDirection: "column", alignItems: "center", gap: "0.3rem",
+          }}>
+            <span style={{ fontSize: "1.5rem" }}>🎯</span>
+            <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--accent)" }}>Timer</span>
+            <span style={{ fontSize: "0.6rem", color: "var(--fg-dim)" }}>Fokuszeit starten</span>
+          </button>
+          <button onClick={() => setPhase("log_setup")} className="btn-interactive" style={{
+            flex: 1, padding: "1rem 0.8rem", borderRadius: 10, border: "1px solid var(--border)",
+            background: "var(--card-bg)", cursor: "pointer", fontFamily: "inherit",
+            display: "flex", flexDirection: "column", alignItems: "center", gap: "0.3rem",
+          }}>
+            <span style={{ fontSize: "1.5rem" }}>📋</span>
+            <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--fg)" }}>Log-Eintrag</span>
+            <span style={{ fontSize: "0.6rem", color: "var(--fg-dim)" }}>Aktivität erfassen</span>
+          </button>
+        </div>
+      )}
+
+      {/* PHASE: Timer Setup */}
+      {phase === "timer_setup" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
-          {/* Entry Type */}
-          <div>
-            <div style={labelStyle}>Typ</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem" }}>
-              {ENTRY_TYPES.map((t) => (
-                <button key={t.value} onClick={() => {
-                  setEntryConfig((c) => ({
-                    ...c, entryType: t.value,
-                    duration: t.value === "meeting" ? 60 : t.value === "walk" ? 10 : t.value === "note" || t.value === "eating" ? 5 : 25,
-                  }));
-                  setPhase("configuring");
-                }} className="chip-interactive" style={chipStyle(entryConfig.entryType === t.value)}>
-                  {t.icon} {t.label}
-                </button>
-              ))}
-            </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginBottom: "0.2rem" }}>
+            <button onClick={() => { setPhase("idle"); resetConfig(); }} style={{ background: "transparent", border: "none", fontSize: "0.8rem", cursor: "pointer", color: "var(--fg-dim)", padding: "0.2rem" }}>←</button>
+            <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--accent)" }}>🎯 Timer einrichten</span>
           </div>
 
           {/* Intention */}
           <div>
-            <div style={labelStyle}>Was?</div>
-            <input value={entryConfig.intention} onChange={(e) => { setEntryConfig((c) => ({ ...c, intention: e.target.value })); setPhase("configuring"); }}
+            <div style={labelStyle}>Woran arbeitest du?</div>
+            <input value={entryConfig.intention} onChange={(e) => setEntryConfig((c) => ({ ...c, intention: e.target.value }))}
               onKeyDown={(e) => e.key === "Enter" && entryConfig.intention.trim() && handleStartEntry()}
-              placeholder={entryConfig.entryType === "note" ? "Notiz..." : entryConfig.entryType === "eating" ? "Was gegessen?" : "Woran arbeitest du?"}
-              style={inputStyle} autoFocus />
+              placeholder="Intention setzen..." style={inputStyle} autoFocus />
           </div>
 
           {/* Duration */}
@@ -782,76 +821,211 @@ export default function HealthTracker({ theme, settings, onSettingsChange }) {
             </div>
           </div>
 
-          {/* Project, Category, Notes — shown after intention */}
-          {entryConfig.intention.trim() && (
-            <>
-              {/* Projekt */}
-              <div>
-                <div style={labelStyle}>Projekt</div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem" }}>
-                  {projects.map((p) => (
-                    <button key={p.id} onClick={() => setEntryConfig((c) => ({ ...c, projectId: c.projectId === p.id ? null : p.id }))} className="chip-interactive"
-                      style={chipStyle(entryConfig.projectId === p.id, p.color)}>
-                      {p.name}
-                    </button>
-                  ))}
-                  {!showNewProject && (
-                    <button onClick={() => setShowNewProject(true)} className="chip-interactive"
-                      style={{ ...chipStyle(false), fontStyle: "italic", opacity: 0.7 }}>
-                      + Neu
-                    </button>
-                  )}
-                </div>
-                {showNewProject && (
-                  <div style={{ display: "flex", gap: "0.3rem", marginTop: "0.3rem" }}>
-                    <input value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && handleCreateProject()}
-                      placeholder="Projektname..." style={{ ...inputStyle, fontSize: "0.75rem", flex: 1 }} autoFocus />
-                    <button onClick={handleCreateProject} className="btn-interactive" disabled={!newProjectName.trim()}
-                      style={{ ...btnStyle(newProjectName.trim() ? "var(--accent)" : "var(--muted)", newProjectName.trim() ? "#fff" : "var(--fg-dim)", "0.72rem"), padding: "0.4rem 0.7rem", opacity: newProjectName.trim() ? 1 : 0.5 }}>
-                      Erstellen
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Wert-Kategorie — always visible */}
-              <div>
-                <div style={labelStyle}>Worauf zahlt das ein?</div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem" }}>
-                  {VALUE_TAGS.map((tag) => (
-                    <button key={tag.id} onClick={() => setEntryConfig((c) => ({
-                      ...c, tags: c.tags.includes(tag.id) ? c.tags.filter((t) => t !== tag.id) : [...c.tags, tag.id],
-                    }))} className="chip-interactive" style={chipStyle(entryConfig.tags.includes(tag.id), tag.color)}>
-                      {tag.icon} {tag.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Notiz — expandable */}
-              {!showNotes && (
-                <button onClick={() => setShowNotes(true)} style={{ background: "transparent", border: "none", fontSize: "0.65rem", color: "var(--fg-dim)", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
-                  + Notiz hinzufügen
+          {/* Projekt */}
+          <div>
+            <div style={labelStyle}>Projekt</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem" }}>
+              {projects.map((p) => (
+                <button key={p.id} onClick={() => setEntryConfig((c) => ({ ...c, projectId: c.projectId === p.id ? null : p.id }))} className="chip-interactive"
+                  style={chipStyle(entryConfig.projectId === p.id, p.color)}>
+                  {p.name}
                 </button>
-              )}
-              {showNotes && (
-                <div>
-                  <div style={labelStyle}>Notiz</div>
-                  <input value={entryConfig.notes} onChange={(e) => setEntryConfig((c) => ({ ...c, notes: e.target.value }))}
-                    placeholder="Optional..." style={{ ...inputStyle, fontSize: "0.78rem" }} />
+              ))}
+              {!showNewProject ? (
+                <button onClick={() => setShowNewProject(true)} className="chip-interactive" style={{ ...chipStyle(false), fontStyle: "italic", opacity: 0.7 }}>+ Neu</button>
+              ) : (
+                <div style={{ display: "flex", gap: "0.3rem", width: "100%", marginTop: "0.2rem" }}>
+                  <input value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleCreateProject()}
+                    placeholder="Projektname..." style={{ ...inputStyle, fontSize: "0.75rem", flex: 1 }} autoFocus />
+                  <button onClick={handleCreateProject} className="btn-interactive" disabled={!newProjectName.trim()}
+                    style={{ ...btnStyle(newProjectName.trim() ? "var(--accent)" : "var(--muted)", newProjectName.trim() ? "#fff" : "var(--fg-dim)", "0.72rem"), padding: "0.4rem 0.7rem", opacity: newProjectName.trim() ? 1 : 0.5 }}>
+                    Erstellen
+                  </button>
                 </div>
               )}
+            </div>
+          </div>
 
-              {/* Start Button */}
-              <button onClick={handleStartEntry} className="btn-interactive" style={{
-                ...btnStyle("var(--accent)", "#fff"), width: "100%", marginTop: "0.3rem",
-                padding: "0.65rem 1.4rem",
-              }}>
-                {TIMER_TYPES.has(entryConfig.entryType) ? `Timer starten (${entryConfig.duration} min)` : "Eintrag loggen"}
-              </button>
-            </>
-          )}
+          {/* Kategorie */}
+          <div>
+            <div style={labelStyle}>Worauf zahlt das ein?</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem" }}>
+              {categories.map((cat) => (
+                <button key={cat.slug} onClick={() => setEntryConfig((c) => ({
+                  ...c, tags: c.tags.includes(cat.slug) ? c.tags.filter((t) => t !== cat.slug) : [...c.tags, cat.slug],
+                }))} className="chip-interactive" style={chipStyle(entryConfig.tags.includes(cat.slug), cat.color)}>
+                  {cat.icon} {cat.label}
+                </button>
+              ))}
+              {!showNewCat ? (
+                <button onClick={() => setShowNewCat(true)} className="chip-interactive" style={{ ...chipStyle(false), fontStyle: "italic", opacity: 0.7 }}>+ Neu</button>
+              ) : (
+                <div style={{ display: "flex", gap: "0.3rem", width: "100%", marginTop: "0.2rem" }}>
+                  <input value={newCatLabel} onChange={(e) => setNewCatLabel(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleCreateCategory()}
+                    placeholder="Kategoriename..." style={{ ...inputStyle, fontSize: "0.75rem", flex: 1 }} autoFocus />
+                  <button onClick={handleCreateCategory} className="btn-interactive" disabled={!newCatLabel.trim()}
+                    style={{ ...btnStyle(newCatLabel.trim() ? "var(--accent)" : "var(--muted)", newCatLabel.trim() ? "#fff" : "var(--fg-dim)", "0.72rem"), padding: "0.4rem 0.7rem", opacity: newCatLabel.trim() ? 1 : 0.5 }}>
+                    Erstellen
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Timer starten */}
+          <button onClick={handleStartEntry} className="btn-interactive" disabled={!entryConfig.intention.trim()} style={{
+            ...btnStyle(entryConfig.intention.trim() ? "var(--accent)" : "var(--muted)", entryConfig.intention.trim() ? "#fff" : "var(--fg-dim)"),
+            width: "100%", marginTop: "0.3rem", padding: "0.7rem 1.4rem", fontSize: "0.9rem",
+            opacity: entryConfig.intention.trim() ? 1 : 0.5,
+          }}>
+            Timer starten ({entryConfig.duration} min)
+          </button>
+        </div>
+      )}
+
+      {/* PHASE: Log Setup — alles auf einmal: Was, Typ, Dauer, Bewertung */}
+      {phase === "log_setup" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginBottom: "0.2rem" }}>
+            <button onClick={() => { setPhase("idle"); resetConfig(); }} style={{ background: "transparent", border: "none", fontSize: "0.8rem", cursor: "pointer", color: "var(--fg-dim)", padding: "0.2rem" }}>←</button>
+            <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--fg)" }}>📋 Aktivität erfassen</span>
+          </div>
+
+          {/* Typ */}
+          <div>
+            <div style={labelStyle}>Art der Aktivität</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem" }}>
+              {ENTRY_TYPES.map((t) => (
+                <button key={t.value} onClick={() => setEntryConfig((c) => ({ ...c, entryType: t.value }))} className="chip-interactive"
+                  style={chipStyle(entryConfig.entryType === t.value)}>
+                  {t.icon} {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Was */}
+          <div>
+            <div style={labelStyle}>Was hast du gemacht?</div>
+            <input value={entryConfig.intention} onChange={(e) => setEntryConfig((c) => ({ ...c, intention: e.target.value }))}
+              placeholder="Beschreibung..." style={inputStyle} autoFocus />
+          </div>
+
+          {/* Dauer */}
+          <div>
+            <div style={labelStyle}>Wie lange?</div>
+            <div style={{ display: "flex", gap: "0.25rem" }}>
+              {DURATION_OPTIONS.map((d) => (
+                <button key={d.value} onClick={() => setEntryConfig((c) => ({ ...c, duration: d.value }))} className="chip-interactive"
+                  style={{ ...chipStyle(entryConfig.duration === d.value), flex: 1, textAlign: "center", padding: "0.4rem 0.3rem" }}>
+                  {d.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Projekt */}
+          <div>
+            <div style={labelStyle}>Projekt</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem" }}>
+              {projects.map((p) => (
+                <button key={p.id} onClick={() => setEntryConfig((c) => ({ ...c, projectId: c.projectId === p.id ? null : p.id }))} className="chip-interactive"
+                  style={chipStyle(entryConfig.projectId === p.id, p.color)}>
+                  {p.name}
+                </button>
+              ))}
+              {!showNewProject ? (
+                <button onClick={() => setShowNewProject(true)} className="chip-interactive" style={{ ...chipStyle(false), fontStyle: "italic", opacity: 0.7 }}>+ Neu</button>
+              ) : (
+                <div style={{ display: "flex", gap: "0.3rem", width: "100%", marginTop: "0.2rem" }}>
+                  <input value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleCreateProject()}
+                    placeholder="Projektname..." style={{ ...inputStyle, fontSize: "0.75rem", flex: 1 }} autoFocus />
+                  <button onClick={handleCreateProject} className="btn-interactive" disabled={!newProjectName.trim()}
+                    style={{ ...btnStyle(newProjectName.trim() ? "var(--accent)" : "var(--muted)", newProjectName.trim() ? "#fff" : "var(--fg-dim)", "0.72rem"), padding: "0.4rem 0.7rem", opacity: newProjectName.trim() ? 1 : 0.5 }}>
+                    Erstellen
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Kategorie */}
+          <div>
+            <div style={labelStyle}>Worauf zahlt das ein?</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem" }}>
+              {categories.map((cat) => (
+                <button key={cat.slug} onClick={() => setEntryConfig((c) => ({
+                  ...c, tags: c.tags.includes(cat.slug) ? c.tags.filter((t) => t !== cat.slug) : [...c.tags, cat.slug],
+                }))} className="chip-interactive" style={chipStyle(entryConfig.tags.includes(cat.slug), cat.color)}>
+                  {cat.icon} {cat.label}
+                </button>
+              ))}
+              {!showNewCat ? (
+                <button onClick={() => setShowNewCat(true)} className="chip-interactive" style={{ ...chipStyle(false), fontStyle: "italic", opacity: 0.7 }}>+ Neu</button>
+              ) : (
+                <div style={{ display: "flex", gap: "0.3rem", width: "100%", marginTop: "0.2rem" }}>
+                  <input value={newCatLabel} onChange={(e) => setNewCatLabel(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleCreateCategory()}
+                    placeholder="Kategoriename..." style={{ ...inputStyle, fontSize: "0.75rem", flex: 1 }} autoFocus />
+                  <button onClick={handleCreateCategory} className="btn-interactive" disabled={!newCatLabel.trim()}
+                    style={{ ...btnStyle(newCatLabel.trim() ? "var(--accent)" : "var(--muted)", newCatLabel.trim() ? "#fff" : "var(--fg-dim)", "0.72rem"), padding: "0.4rem 0.7rem", opacity: newCatLabel.trim() ? 1 : 0.5 }}>
+                    Erstellen
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Geschäftswert */}
+          <div>
+            <div style={labelStyle}>Geschäftswert</div>
+            <div style={{ display: "flex", gap: "0.3rem" }}>
+              {BIZ_LEVELS.map((lvl) => (
+                <button key={lvl.value} onClick={() => setEntryConfig((c) => ({ ...c, logBiz: c.logBiz === lvl.value ? null : lvl.value }))} className="chip-interactive" style={{
+                  flex: 1, padding: "0.4rem 0.2rem", borderRadius: 6, fontSize: "0.65rem", fontFamily: "inherit",
+                  border: entryConfig.logBiz === lvl.value ? "2px solid var(--accent)" : "1px solid var(--border)",
+                  background: entryConfig.logBiz === lvl.value ? "rgba(196,77,43,0.12)" : "transparent",
+                  color: entryConfig.logBiz === lvl.value ? "var(--accent)" : "var(--fg-dim)", cursor: "pointer",
+                  fontWeight: entryConfig.logBiz === lvl.value ? 700 : 400, display: "flex", flexDirection: "column", alignItems: "center", gap: "2px",
+                }}>
+                  <span style={{ fontSize: "0.8rem" }}>{lvl.icon}</span><span>{lvl.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Energie */}
+          <div>
+            <div style={labelStyle}>Energie-Bilanz</div>
+            <div style={{ display: "flex", gap: "0.3rem" }}>
+              {ENERGY_LEVELS.map((lvl) => (
+                <button key={lvl.value} onClick={() => setEntryConfig((c) => ({ ...c, logEnergy: c.logEnergy === lvl.value ? null : lvl.value }))} className="chip-interactive" style={{
+                  flex: 1, padding: "0.4rem 0.2rem", borderRadius: 6, fontSize: "0.65rem", fontFamily: "inherit",
+                  border: entryConfig.logEnergy === lvl.value ? "2px solid var(--done)" : "1px solid var(--border)",
+                  background: entryConfig.logEnergy === lvl.value ? "rgba(45,138,78,0.12)" : "transparent",
+                  color: entryConfig.logEnergy === lvl.value ? "var(--done)" : "var(--fg-dim)", cursor: "pointer",
+                  fontWeight: entryConfig.logEnergy === lvl.value ? 700 : 400, display: "flex", flexDirection: "column", alignItems: "center", gap: "2px",
+                }}>
+                  <span style={{ fontSize: "0.8rem" }}>{lvl.icon}</span><span>{lvl.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Notiz */}
+          <div>
+            <div style={labelStyle}>Notiz (optional)</div>
+            <input value={entryConfig.notes} onChange={(e) => setEntryConfig((c) => ({ ...c, notes: e.target.value }))}
+              placeholder="Optional..." style={{ ...inputStyle, fontSize: "0.78rem" }} />
+          </div>
+
+          {/* Log Button */}
+          <button onClick={handleLogEntry} className="btn-interactive" disabled={!entryConfig.intention.trim()} style={{
+            ...btnStyle(entryConfig.intention.trim() ? "var(--fg)" : "var(--muted)", entryConfig.intention.trim() ? "var(--bg)" : "var(--fg-dim)"),
+            width: "100%", marginTop: "0.3rem", padding: "0.65rem 1.4rem",
+            opacity: entryConfig.intention.trim() ? 1 : 0.5,
+          }}>
+            Eintrag loggen ({entryConfig.duration} min)
+          </button>
         </div>
       )}
 
@@ -864,6 +1038,7 @@ export default function HealthTracker({ theme, settings, onSettingsChange }) {
           onTick={(secs, running) => setTimerInfo({ seconds: secs, running, intention: entryConfig.intention })}
           intention={entryConfig.intention}
           timerKey={`entry-${currentEntryId}`}
+          persist={{ entryId: currentEntryId, entryType: entryConfig.entryType, duration: entryConfig.duration }}
         />
       )}
 
