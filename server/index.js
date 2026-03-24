@@ -50,7 +50,8 @@ app.get("/api/today", (req, res) => {
   const movements = db.getMovementsByDay(day.id);
   const gamification = db.getGamification(today);
   const lastCompleted = db.getLastCompletedTime(day.id);
-  res.json({ day, pomodoros, movements, gamification, lastCompleted });
+  const streakLength = db.calcStreakLength(today);
+  res.json({ day, pomodoros, movements, gamification, lastCompleted, streakLength });
 });
 
 // --- Categories ---

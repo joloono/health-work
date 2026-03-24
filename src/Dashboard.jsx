@@ -194,7 +194,7 @@ function ProjektView({ dayData }) {
         return (
           <div key={proj.id}>
             {/* Collapsed card */}
-            <button onClick={() => setExpanded(isOpen ? null : proj.id)} style={{
+            <button onClick={() => setExpanded(isOpen ? null : proj.id)} className="card-interactive" style={{
               width: "100%", textAlign: "left", cursor: "pointer", fontFamily: "inherit",
               padding: "0.65rem 0.8rem", background: "var(--card-bg)", borderRadius: isOpen ? "8px 8px 0 0" : 8,
               border: isOpen ? "1px solid var(--accent)" : "1px solid var(--border)",
@@ -398,9 +398,9 @@ function AuditKalender() {
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.8rem" }}>
-        <button onClick={prevMonth} style={{ background: "var(--muted)", border: "none", borderRadius: 6, padding: "0.3rem 0.6rem", fontSize: "0.78rem", cursor: "pointer", fontFamily: "inherit", color: "var(--fg)" }}>←</button>
+        <button onClick={prevMonth} className="btn-interactive" style={{ background: "var(--muted)", border: "none", borderRadius: 6, padding: "0.3rem 0.6rem", fontSize: "0.78rem", cursor: "pointer", fontFamily: "inherit", color: "var(--fg)" }}>←</button>
         <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontWeight: 700, fontSize: "1rem" }}>{monthLabel}</span>
-        <button onClick={nextMonth} style={{ background: "var(--muted)", border: "none", borderRadius: 6, padding: "0.3rem 0.6rem", fontSize: "0.78rem", cursor: "pointer", fontFamily: "inherit", color: "var(--fg)" }}>→</button>
+        <button onClick={nextMonth} className="btn-interactive" style={{ background: "var(--muted)", border: "none", borderRadius: 6, padding: "0.3rem 0.6rem", fontSize: "0.78rem", cursor: "pointer", fontFamily: "inherit", color: "var(--fg)" }}>→</button>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "3px" }}>
@@ -497,12 +497,11 @@ export default function Dashboard({ theme }) {
       {/* Tabs */}
       <div style={{ display: "flex", gap: "0.25rem", marginBottom: "1.2rem", background: "var(--muted)", borderRadius: 8, padding: "0.2rem" }}>
         {tabs.map((t) => (
-          <button key={t.id} onClick={() => setTab(t.id)} style={{
+          <button key={t.id} onClick={() => setTab(t.id)} className="btn-interactive" style={{
             flex: 1, padding: "0.45rem 0.3rem", borderRadius: 6, fontSize: "0.68rem", fontWeight: 600,
             fontFamily: "inherit", cursor: "pointer", border: "none",
             background: tab === t.id ? "var(--card-bg)" : "transparent",
             color: tab === t.id ? "var(--accent)" : "var(--fg-dim)",
-            transition: "all 0.15s ease",
           }}>
             {t.label}
           </button>

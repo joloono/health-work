@@ -160,7 +160,7 @@ function GapAudit({ gapMinutes, lastTime, dayId, projects, onComplete }) {
             ))}
           </div>
           <input value={intention} onChange={(e) => setIntention(e.target.value)} placeholder="Was hast du gemacht?"
-            style={{ width: "100%", padding: "0.5rem 0.7rem", border: "1px solid var(--border)", borderRadius: 6, fontSize: "0.8rem", fontFamily: "inherit", background: "var(--bg)", color: "var(--fg)", outline: "none" }} />
+            style={{ width: "100%", padding: "0.5rem 0.7rem", border: "1px solid var(--border)", borderRadius: 6, fontSize: "0.8rem", fontFamily: "inherit", background: "var(--bg)", color: "var(--fg)" }} />
           {/* Biz rating */}
           <div style={{ display: "flex", gap: "0.25rem" }}>
             {BIZ_LEVELS.map((lvl) => (
@@ -212,7 +212,7 @@ function GapAudit({ gapMinutes, lastTime, dayId, projects, onComplete }) {
                 ))}
               </div>
               <input value={e.intention} onChange={(ev) => updateEntry(i, { intention: ev.target.value })} placeholder="Was?"
-                style={{ width: "100%", padding: "0.35rem 0.5rem", border: "1px solid var(--border)", borderRadius: 5, fontSize: "0.72rem", fontFamily: "inherit", background: "var(--card-bg)", color: "var(--fg)", outline: "none", marginBottom: "0.3rem" }} />
+                style={{ width: "100%", padding: "0.35rem 0.5rem", border: "1px solid var(--border)", borderRadius: 5, fontSize: "0.72rem", fontFamily: "inherit", background: "var(--card-bg)", color: "var(--fg)", marginBottom: "0.3rem" }} />
               <div style={{ display: "flex", gap: "0.2rem", marginBottom: "0.2rem" }}>
                 {BIZ_LEVELS.map((lvl) => (
                   <button key={lvl.value} onClick={() => updateEntry(i, { biz: lvl.value })} style={{
@@ -476,15 +476,15 @@ function PomodoroTimer({ onComplete, autoStart = false, soundEnabled = true, onT
 
       <div style={{ display: "flex", gap: "0.6rem" }}>
         {!done && !running && (
-          <button onClick={handleStart} style={btnStyle("var(--accent)", "#fff")}>
+          <button onClick={handleStart} className="btn-interactive" style={btnStyle("var(--accent)", "#fff")}>
             {remaining === WORK ? "Start" : "Weiter"}
           </button>
         )}
         {!done && running && (
-          <button onClick={handlePause} style={btnStyle("var(--muted)", "var(--fg)")}>Pause</button>
+          <button onClick={handlePause} className="btn-interactive" style={btnStyle("var(--muted)", "var(--fg)")}>Pause</button>
         )}
         {done && (
-          <button onClick={onComplete} style={btnStyle("var(--done)", "#fff")}>✓ Fertig</button>
+          <button onClick={onComplete} className="btn-interactive" style={btnStyle("var(--done)", "#fff")}>✓ Fertig</button>
         )}
       </div>
     </div>
@@ -516,7 +516,7 @@ function MoveCountdown({ onFinished }) {
       </div>
       {!finished && <TimerDisplay seconds={secs} size="1.8rem" />}
       {!finished && (
-        <button onClick={() => setRunning(!running)} style={btnStyle(running ? "var(--muted)" : "var(--accent)", running ? "var(--fg)" : "#fff", "0.8rem")}>
+        <button onClick={() => setRunning(!running)} className="btn-interactive" style={btnStyle(running ? "var(--muted)" : "var(--accent)", running ? "var(--fg)" : "#fff", "0.8rem")}>
           {running ? "Pause" : secs === 60 ? "Los!" : "Weiter"}
         </button>
       )}
@@ -541,12 +541,12 @@ function QuickMovePicker({ onConfirm, selected }) {
             {QUICK_MOVES.map((m) => {
               const active = selectedSet.includes(m.id);
               return (
-                <button key={m.id} onClick={() => !alreadyDone && toggle(m.id)} style={{
+                <button key={m.id} onClick={() => !alreadyDone && toggle(m.id)} className={alreadyDone ? "" : "chip-interactive"} style={{
                   display: "flex", flexDirection: "column", alignItems: "center", gap: "0.15rem",
                   padding: "0.45rem 0.2rem", border: active ? "2px solid var(--done)" : "1px solid var(--border)",
                   borderRadius: 8, background: active ? "var(--done-bg)" : "var(--card-bg)",
                   cursor: alreadyDone ? "default" : "pointer", fontSize: "0.72rem", fontFamily: "inherit", color: "var(--fg)",
-                  fontWeight: active ? 600 : 400, transition: "all 0.15s ease",
+                  fontWeight: active ? 600 : 400,
                 }}>
                   <span style={{ fontSize: "1rem" }}>{m.icon}</span>
                   <span>{m.label}</span>
@@ -556,7 +556,7 @@ function QuickMovePicker({ onConfirm, selected }) {
           </div>
           {!alreadyDone && picks.length > 0 && (
             <div style={{ textAlign: "center", marginTop: "0.5rem" }}>
-              <button onClick={() => onConfirm(picks.join(","))} style={btnStyle("var(--done)", "#fff", "0.78rem")}>
+              <button onClick={() => onConfirm(picks.join(","))} className="btn-interactive" style={btnStyle("var(--done)", "#fff", "0.78rem")}>
                 ✓ {picks.length} Übung{picks.length !== 1 ? "en" : ""} loggen
               </button>
             </div>
@@ -580,12 +580,12 @@ function BlockMovePicker({ onConfirm, selected }) {
         {BLOCK_MOVES.map((m) => {
           const active = selectedSet.includes(m.id);
           return (
-            <button key={m.id} onClick={() => !alreadyDone && toggle(m.id)} style={{
+            <button key={m.id} onClick={() => !alreadyDone && toggle(m.id)} className={alreadyDone ? "" : "chip-interactive"} style={{
               display: "flex", alignItems: "center", gap: "0.4rem", padding: "0.55rem 0.6rem",
               border: active ? "2px solid var(--done)" : "1px solid var(--border)",
               borderRadius: 8, background: active ? "var(--done-bg)" : "var(--card-bg)",
               cursor: alreadyDone ? "default" : "pointer", fontSize: "0.78rem", fontFamily: "inherit", color: "var(--fg)",
-              fontWeight: active ? 600 : 400, transition: "all 0.15s ease",
+              fontWeight: active ? 600 : 400,
             }}>
               <span>{m.icon}</span>
               <span>{m.label}</span>
@@ -595,7 +595,7 @@ function BlockMovePicker({ onConfirm, selected }) {
       </div>
       {!alreadyDone && picks.length > 0 && (
         <div style={{ textAlign: "center", marginTop: "0.5rem" }}>
-          <button onClick={() => onConfirm(picks.join(","))} style={btnStyle("var(--done)", "#fff", "0.78rem")}>
+          <button onClick={() => onConfirm(picks.join(","))} className="btn-interactive" style={btnStyle("var(--done)", "#fff", "0.78rem")}>
             ✓ Pause loggen
           </button>
         </div>
@@ -626,7 +626,7 @@ function RatingStep({ intention, pomodoroId, onComplete }) {
         </div>
         <div style={{ display: "flex", gap: "0.3rem" }}>
           {BIZ_LEVELS.map((lvl) => (
-            <button key={lvl.value} onClick={() => setBiz(lvl.value)} style={{
+            <button key={lvl.value} onClick={() => setBiz(lvl.value)} className="chip-interactive" style={{
               flex: 1, padding: "0.4rem 0.2rem", borderRadius: 6, fontSize: "0.65rem", fontFamily: "inherit",
               border: biz === lvl.value ? "2px solid var(--accent)" : "1px solid var(--border)",
               background: biz === lvl.value ? "rgba(196,77,43,0.12)" : "transparent",
@@ -647,7 +647,7 @@ function RatingStep({ intention, pomodoroId, onComplete }) {
         </div>
         <div style={{ display: "flex", gap: "0.3rem" }}>
           {ENERGY_LEVELS.map((lvl) => (
-            <button key={lvl.value} onClick={() => setEnergy(lvl.value)} style={{
+            <button key={lvl.value} onClick={() => setEnergy(lvl.value)} className="chip-interactive" style={{
               flex: 1, padding: "0.4rem 0.2rem", borderRadius: 6, fontSize: "0.65rem", fontFamily: "inherit",
               border: energy === lvl.value ? "2px solid var(--done)" : "1px solid var(--border)",
               background: energy === lvl.value ? "rgba(45,138,78,0.12)" : "transparent",
@@ -664,6 +664,7 @@ function RatingStep({ intention, pomodoroId, onComplete }) {
 
       <button
         onClick={handleSubmit}
+        className="btn-interactive"
         disabled={biz == null || energy == null}
         style={{
           ...btnStyle(biz != null && energy != null ? "var(--accent)" : "var(--muted)", biz != null && energy != null ? "#fff" : "var(--fg-dim)", "0.82rem"),
@@ -728,7 +729,7 @@ function StepIndicator({ block }) {
   );
 }
 
-function BlockCard({ block, index, isActive, dayId, onUpdate, soundEnabled, onTimerTick, projects }) {
+function BlockCard({ block, index, isActive, dayId, onUpdate, soundEnabled, onTimerTick, projects, blockRef }) {
   const step = getBlockStep(block);
   const complete = step.type === "done";
   const [intentionDraft, setIntentionDraft] = useState("");
@@ -736,6 +737,7 @@ function BlockCard({ block, index, isActive, dayId, onUpdate, soundEnabled, onTi
   const [selectedProject, setSelectedProject] = useState(null);
   const [newProjectName, setNewProjectName] = useState("");
   const [showNewProject, setShowNewProject] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   const toggleTag = (tagId) => {
     setSelectedTags((prev) => prev.includes(tagId) ? prev.filter((t) => t !== tagId) : [...prev, tagId]);
@@ -779,8 +781,32 @@ function BlockCard({ block, index, isActive, dayId, onUpdate, soundEnabled, onTi
     onUpdate();
   };
 
+  // Collapsed view for completed blocks
+  const pomsDone = block.pomodoros.filter(Boolean).length;
+  const minisDone = block.miniMoves.filter(Boolean).length;
+
+  if (complete && !expanded && !isActive) {
+    return (
+      <div ref={blockRef} onClick={() => setExpanded(true)} className="card-interactive" style={{
+        border: "2px solid var(--done)", borderRadius: 12, padding: "0.6rem 1rem",
+        background: "var(--done-bg)", cursor: "pointer", transition: "all 0.2s ease",
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "1rem", fontWeight: 700, color: "var(--done)" }}>
+            Block {BLOCK_LABELS[index]} ✓
+          </span>
+          <span style={{ fontSize: "0.68rem", color: "var(--fg-dim)" }}>
+            {pomsDone} Pomodoros, {minisDone} Moves
+          </span>
+        </div>
+        <span style={{ fontSize: "0.7rem", color: "var(--fg-dim)", transition: "transform 0.2s" }}>▾</span>
+      </div>
+    );
+  }
+
   return (
-    <div style={{
+    <div ref={blockRef} style={{
       border: isActive ? "2px solid var(--accent)" : complete ? "2px solid var(--done)" : "1px solid var(--border)",
       borderRadius: 12, padding: "1rem", background: complete ? "var(--done-bg)" : "var(--card-bg)",
       transition: "all 0.2s ease",
@@ -789,6 +815,14 @@ function BlockCard({ block, index, isActive, dayId, onUpdate, soundEnabled, onTi
         <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "1.15rem", fontWeight: 700, color: complete ? "var(--done)" : "var(--fg)" }}>
           Block {BLOCK_LABELS[index]} {complete && "✓"}
         </span>
+        {complete && (
+          <button onClick={() => setExpanded(false)} className="btn-interactive" style={{
+            background: "transparent", border: "none", fontSize: "0.65rem", color: "var(--fg-dim)",
+            cursor: "pointer", fontFamily: "inherit", padding: "0.2rem 0.4rem",
+          }}>
+            ▴ Einklappen
+          </button>
+        )}
       </div>
 
       <StepIndicator block={block} />
@@ -844,7 +878,7 @@ function BlockCard({ block, index, isActive, dayId, onUpdate, soundEnabled, onTi
               {/* Project selector */}
               <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem", justifyContent: "center", maxWidth: 340 }}>
                 {projects.map((p) => (
-                  <button key={p.id} onClick={() => setSelectedProject(selectedProject === p.id ? null : p.id)} style={{
+                  <button key={p.id} onClick={() => setSelectedProject(selectedProject === p.id ? null : p.id)} className="chip-interactive" style={{
                     padding: "0.25rem 0.5rem", borderRadius: 5, fontSize: "0.65rem", fontFamily: "inherit",
                     border: selectedProject === p.id ? `2px solid ${p.color}` : "1px solid var(--border)",
                     background: selectedProject === p.id ? `${p.color}18` : "transparent",
@@ -855,7 +889,7 @@ function BlockCard({ block, index, isActive, dayId, onUpdate, soundEnabled, onTi
                   </button>
                 ))}
                 {!showNewProject ? (
-                  <button onClick={() => setShowNewProject(true)} style={{
+                  <button onClick={() => setShowNewProject(true)} className="chip-interactive" style={{
                     padding: "0.25rem 0.5rem", borderRadius: 5, fontSize: "0.65rem", fontFamily: "inherit",
                     border: "1px dashed var(--border)", background: "transparent", color: "var(--fg-dim)",
                     cursor: "pointer",
@@ -887,7 +921,7 @@ function BlockCard({ block, index, isActive, dayId, onUpdate, soundEnabled, onTi
                 style={{
                   width: "100%", maxWidth: 320, padding: "0.6rem 0.8rem",
                   border: "1px solid var(--border)", borderRadius: 8, fontSize: "0.85rem",
-                  fontFamily: "inherit", background: "var(--bg)", color: "var(--fg)", outline: "none",
+                  fontFamily: "inherit", background: "var(--bg)", color: "var(--fg)",
                 }}
               />
 
@@ -896,7 +930,7 @@ function BlockCard({ block, index, isActive, dayId, onUpdate, soundEnabled, onTi
                 {VALUE_TAGS.map((tag) => {
                   const active = selectedTags.includes(tag.id);
                   return (
-                    <button key={tag.id} onClick={() => toggleTag(tag.id)} style={{
+                    <button key={tag.id} onClick={() => toggleTag(tag.id)} className="chip-interactive" style={{
                       display: "flex", alignItems: "center", gap: "0.25rem",
                       padding: "0.3rem 0.55rem", borderRadius: 6, fontSize: "0.68rem", fontFamily: "inherit",
                       border: active ? `2px solid ${tag.color}` : "1px solid var(--border)",
@@ -911,7 +945,7 @@ function BlockCard({ block, index, isActive, dayId, onUpdate, soundEnabled, onTi
                 })}
               </div>
 
-              <button onClick={handleSetIntention} disabled={!intentionDraft.trim()} style={{
+              <button onClick={handleSetIntention} disabled={!intentionDraft.trim()} className="btn-interactive" style={{
                 ...btnStyle(intentionDraft.trim() ? "var(--accent)" : "var(--muted)", intentionDraft.trim() ? "#fff" : "var(--fg-dim)", "0.82rem"),
                 opacity: intentionDraft.trim() ? 1 : 0.5,
               }}>
@@ -975,6 +1009,7 @@ export default function HealthTracker({ theme, settings, onSettingsChange }) {
   const [gamification, setGamification] = useState(null);
   const [timerInfo, setTimerInfo] = useState(null);
   const [projects, setProjects] = useState([]);
+  const blockRefs = useRef([null, null, null, null]);
 
   const loadData = useCallback(async () => {
     try {
@@ -1011,8 +1046,49 @@ export default function HealthTracker({ theme, settings, onSettingsChange }) {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Persist is not called automatically yet — we compute and display live
-  // The actual persistence happens when data changes via loadData
+  // Auto-scroll to the active block when blocks change
+  useEffect(() => {
+    if (!blocks) return;
+    const idx = blocks.findIndex((b) => !isBlockComplete(b));
+    if (idx >= 0 && blockRefs.current[idx]) {
+      setTimeout(() => {
+        blockRefs.current[idx]?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 100);
+    }
+  }, [blocks]);
+
+  // Persist gamification data to server whenever blocks/dayData change
+  const prevGamKey = useRef("");
+  useEffect(() => {
+    if (!dayData?.day?.id || !blocks) return;
+    const pomCount = blocks.reduce((s, b) => s + b.pomodoros.filter(Boolean).length, 0);
+    const moveCount = blocks.reduce((s, b) => s + b.miniMoves.filter(Boolean).length, 0)
+      + blocks.filter((b) => b.blockMove).length;
+    const bizSum = blocks.reduce((s, b) => s + b.bizRatings.reduce((sum, r) => sum + (r || 0), 0), 0);
+    const energySum = blocks.reduce((s, b) => s + b.energyRatings.reduce((sum, r) => sum + (r || 0), 0), 0);
+    // Build a key to detect actual changes (avoids duplicate writes)
+    const key = `${pomCount}-${moveCount}-${bizSum}-${energySum}`;
+    if (key === prevGamKey.current) return;
+    prevGamKey.current = key;
+    if (pomCount === 0 && moveCount === 0) return;
+
+    const retroCount = (dayData.pomodoros || []).filter((p) => p.retroactive).length;
+    const xp = calcDayXP(pomCount, moveCount, bizSum, energySum, retroCount);
+    const sl = dayData.streakLength || 0;
+    const effXP = calcEffectiveXP(xp, sl);
+    const cumXP = (gamification?.current?.cumulative_xp || 0) + effXP - (dayData.day.effective_xp || 0);
+    const lp = getLevelProgress(cumXP);
+
+    api.updateDayPoints(dayData.day.id, pomCount + moveCount, xp, effXP, sl, lp.level).catch(() => {});
+    api.upsertGamification({
+      date: dayData.day.date,
+      cumulative_points: pomCount + moveCount,
+      cumulative_xp: cumXP,
+      current_rank: lp.level,
+      streak_length: sl,
+      level_change: "none",
+    }).catch(() => {});
+  }, [blocks, dayData, gamification]);
 
   // Gap detection: >30 min since last completed pomodoro
   const [gapDismissed, setGapDismissed] = useState(false);
@@ -1038,7 +1114,7 @@ export default function HealthTracker({ theme, settings, onSettingsChange }) {
 
   // XP system
   const dayXP = calcDayXP(totalPom, totalMini + totalBlock, totalBizRating, totalEnergy, totalRetro);
-  const streak = gamification?.current?.streak_length || 0;
+  const streak = dayData.streakLength || 0;
   const streakMult = getStreakMultiplier(streak);
   const effectiveXP = calcEffectiveXP(dayXP, streak);
   const cumulativeXP = (gamification?.current?.cumulative_xp || 0) + effectiveXP - (dayData.day.effective_xp || 0);
@@ -1189,6 +1265,7 @@ export default function HealthTracker({ theme, settings, onSettingsChange }) {
             soundEnabled={settings?.soundEnabled}
             onTimerTick={(secs, running, intention) => setTimerInfo({ seconds: secs, running, intention })}
             projects={projects}
+            blockRef={(el) => { blockRefs.current[i] = el; }}
           />
         ))}
       </div>

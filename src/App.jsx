@@ -91,7 +91,7 @@ function FooterNav({ view, setView, settings, onSettingsChange }) {
       maxWidth: 480, margin: "0 auto",
     }}>
       {NAV_ITEMS.map((item) => (
-        <button key={item.id} onClick={() => setView(item.id)} style={{
+        <button key={item.id} onClick={() => setView(item.id)} className="btn-interactive" style={{
           ...footerBtn,
           background: view === item.id ? "var(--accent)" : "transparent",
           color: view === item.id ? "#fff" : "var(--fg-dim)",
@@ -101,10 +101,10 @@ function FooterNav({ view, setView, settings, onSettingsChange }) {
           {item.label}
         </button>
       ))}
-      <button onClick={() => onSettingsChange({ darkMode: !settings.darkMode })} style={footerBtn}>
+      <button onClick={() => onSettingsChange({ darkMode: !settings.darkMode })} className="btn-interactive" style={footerBtn}>
         {settings.darkMode ? "☀️" : "🌙"}
       </button>
-      <button onClick={() => onSettingsChange({ soundEnabled: !settings.soundEnabled })} style={footerBtn}>
+      <button onClick={() => onSettingsChange({ soundEnabled: !settings.soundEnabled })} className="btn-interactive" style={footerBtn}>
         {settings.soundEnabled ? "🔊" : "🔇"}
       </button>
     </div>
@@ -126,6 +126,19 @@ export default function App() {
   return (
     <div style={{ ...theme }}>
       <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Playfair+Display:wght@700&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet" />
+      <style>{`
+        .btn-interactive { transition: filter 0.15s ease, transform 0.1s ease; }
+        .btn-interactive:hover { filter: brightness(1.1); }
+        .btn-interactive:active { transform: scale(0.97); }
+        .btn-interactive:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+        .chip-interactive { transition: filter 0.15s ease, transform 0.1s ease; }
+        .chip-interactive:hover { filter: brightness(1.08); transform: translateY(-1px); }
+        .chip-interactive:active { transform: scale(0.96); }
+        .chip-interactive:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+        .card-interactive { transition: border-color 0.2s ease, box-shadow 0.2s ease; }
+        .card-interactive:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
+      `}</style>
 
       {/* Timer banner on non-timer views */}
       {view !== "timer" && <TimerBanner timerInfo={globalTimer} onClick={() => setView("timer")} />}

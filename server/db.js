@@ -379,6 +379,39 @@ function updateCategory(id, slug, label, icon, color, description, active, sortO
   return stmtUpdateCategory.run(slug, label, icon || "", color || "#888", description || "", active ? 1 : 0, sortOrder || 0, id);
 }
 
+// --- Streak calculation ---
+
+const stmtStreakDays = db.prepare(`
+  SELECT d.date,
+    COUNT(DISTINCT CASE WHEN p.completed_at IS NOT NULL THEN p.id END) AS pom_count,
+    COUNT(DISTINCT m.id) AS move_count
+  FROM days d
+  LEFT JOIN pomodoros p ON p.day_id = d.id
+  LEFT JOIN movements m ON m.day_id = d.id
+  WHERE d.date <= ?
+  GROUP BY d.id
+  ORDER BY d.date DESC
+  LIMIT 60
+`);
+
+function calcStreakLength(today) {
+  const rows = stmtStreakDays.all(today);
+  let streak = 0;
+  let expectedDate = new Date(today + "T00:00:00Z");
+  for (const row of rows) {
+    const rowDate = row.date;
+    const expected = expectedDate.toISOString().slice(0, 10);
+    if (rowDate !== expected) break; // gap in days
+    if (row.pom_count >= 1 && row.move_count >= 1) {
+      streak++;
+    } else {
+      break; // day didn't qualify
+    }
+    expectedDate.setUTCDate(expectedDate.getUTCDate() - 1);
+  }
+  return streak;
+}
+
 // --- Recent days ---
 
 const stmtRecentDays = db.prepare(
@@ -411,6 +444,7 @@ module.exports = {
   getWeekSummary,
   getCalendar,
   getRecentDays,
+  calcStreakLength,
   getCategories,
   getAllCategories,
   createCategory,

@@ -45,7 +45,7 @@ export const footerBtn = {
 export const inputStyle = {
   width: "100%", padding: "0.5rem 0.7rem",
   border: "1px solid var(--border)", borderRadius: 6, fontSize: "0.82rem",
-  fontFamily: "inherit", background: "var(--bg)", color: "var(--fg)", outline: "none",
+  fontFamily: "inherit", background: "var(--bg)", color: "var(--fg)",
 };
 
 export const labelStyle = {

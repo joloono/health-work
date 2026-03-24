@@ -60,11 +60,11 @@ function ProjectCard({ project, onSave, onToggleActive }) {
     <div style={{ padding: "0.8rem", background: "var(--card-bg)", borderRadius: 8, border: "2px solid var(--accent)" }}>
       <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Projektname"
-          style={{ padding: "0.4rem 0.6rem", border: "1px solid var(--border)", borderRadius: 6, fontSize: "0.82rem", fontFamily: "inherit", background: "var(--bg)", color: "var(--fg)", outline: "none" }} />
+          style={{ padding: "0.4rem 0.6rem", border: "1px solid var(--border)", borderRadius: 6, fontSize: "0.82rem", fontFamily: "inherit", background: "var(--bg)", color: "var(--fg)" }} />
         <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Beschreibung (optional)"
-          style={{ padding: "0.4rem 0.6rem", border: "1px solid var(--border)", borderRadius: 6, fontSize: "0.75rem", fontFamily: "inherit", background: "var(--bg)", color: "var(--fg)", outline: "none" }} />
+          style={{ padding: "0.4rem 0.6rem", border: "1px solid var(--border)", borderRadius: 6, fontSize: "0.75rem", fontFamily: "inherit", background: "var(--bg)", color: "var(--fg)" }} />
         <input value={client} onChange={(e) => setClient(e.target.value)} placeholder="Kunde (optional)"
-          style={{ padding: "0.4rem 0.6rem", border: "1px solid var(--border)", borderRadius: 6, fontSize: "0.75rem", fontFamily: "inherit", background: "var(--bg)", color: "var(--fg)", outline: "none" }} />
+          style={{ padding: "0.4rem 0.6rem", border: "1px solid var(--border)", borderRadius: 6, fontSize: "0.75rem", fontFamily: "inherit", background: "var(--bg)", color: "var(--fg)" }} />
 
         <div>
           <div style={{ fontSize: "0.65rem", color: "var(--fg-dim)", fontWeight: 600, marginBottom: "0.2rem" }}>Farbe</div>
@@ -178,7 +178,7 @@ export default function ProjectSettings({ theme }) {
               <input value={newName} onChange={(e) => setNewName(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); }}
                 placeholder="Projektname..."
-                style={{ flex: 1, padding: "0.45rem 0.6rem", border: "1px solid var(--border)", borderRadius: 6, fontSize: "0.82rem", fontFamily: "inherit", background: "var(--bg)", color: "var(--fg)", outline: "none" }} />
+                style={{ flex: 1, padding: "0.45rem 0.6rem", border: "1px solid var(--border)", borderRadius: 6, fontSize: "0.82rem", fontFamily: "inherit", background: "var(--bg)", color: "var(--fg)" }} />
               <button onClick={handleCreate} disabled={!newName.trim()} style={btn(newName.trim() ? "var(--accent)" : "var(--muted)", newName.trim() ? "#fff" : "var(--fg-dim)", "0.78rem")}>
                 Anlegen
               </button>
