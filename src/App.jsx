@@ -180,6 +180,7 @@ export default function App() {
         @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes rippleFill { 0% { transform: scale(0); opacity: 0.2; } 60% { opacity: 0.12; } 100% { transform: scale(1); opacity: 0; } }
         @keyframes rippleRing { 0% { transform: scale(0); opacity: 0.35; } 100% { transform: scale(1); opacity: 0; } }
+        @keyframes todoConfetti { 0% { transform: translate(-50%,-50%) rotate(0deg) translateY(0); opacity: 1; } 30% { opacity: 1; } 100% { transform: translate(-50%,-50%) rotate(var(--angle)) translateY(calc(-1 * var(--dist))); opacity: 0; } }
         .fade-in { animation: fadeIn 0.3s ease-out both; }
         .btn-interactive { transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1); }
         .btn-interactive:hover { filter: brightness(1.08); transform: translateY(-1px); }

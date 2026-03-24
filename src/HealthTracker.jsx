@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { api } from "./api.js";
 import { getRank, calcDayXPFlex, calcEffectiveXP, getStreakMultiplier, getLevelProgress, xpForLevel } from "./gamification.js";
-import { playNotificationSound, playReturnSound } from "./useSettings.js";
+import { playNotificationSound, playReturnSound, playCompletionChime } from "./useSettings.js";
 import { VALUE_TAGS, CATEGORY_COLORS, btnStyle, chipStyle, inputStyle, pageStyle, labelStyle } from "./constants.js";
 
 // --- Constants ---
@@ -567,9 +567,9 @@ function TodoList({ todos, dayId, openYesterday, onUpdate, expanded, onToggleExp
   };
 
   const handleToggle = async (id, currentDone) => {
-    const completing = !currentDone;
-    await api.toggleTodo(id, completing);
-    if (completing) playNotificationSound();
+    if (currentDone) return; // one-way door: no un-completing
+    await api.toggleTodo(id, true);
+    playCompletionChime();
     onUpdate();
   };
 
@@ -638,16 +638,50 @@ function TodoList({ todos, dayId, openYesterday, onUpdate, expanded, onToggleExp
   );
 }
 
+function MiniConfetti({ active }) {
+  if (!active) return null;
+  const particles = Array.from({ length: 12 }, (_, i) => {
+    const angle = (i / 12) * 360;
+    const dist = 14 + Math.random() * 10;
+    const size = 3 + Math.random() * 3;
+    const colors = ["var(--accent)", "var(--done)", "#d4a843", "#6aafcf", "#a8826a"];
+    return { angle, dist, size, color: colors[i % colors.length], delay: Math.random() * 0.15 };
+  });
+  return (
+    <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 5 }}>
+      {particles.map((p, i) => (
+        <div key={i} style={{
+          position: "absolute", left: "50%", top: "50%", width: p.size, height: p.size,
+          borderRadius: p.size > 4 ? 1 : "50%", background: p.color,
+          animation: `todoConfetti 2.7s ease-out ${p.delay}s forwards`,
+          "--angle": `${p.angle}deg`, "--dist": `${p.dist}px`,
+        }} />
+      ))}
+    </div>
+  );
+}
+
 function TodoItem({ t, onToggle, onDelete }) {
+  const [celebrating, setCelebrating] = useState(false);
+  const handleClick = () => {
+    if (t.done) return;
+    setCelebrating(true);
+    onToggle(t.id, t.done);
+    setTimeout(() => setCelebrating(false), 2700);
+  };
   return (
     <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", padding: "0.35rem 0.3rem", borderBottom: "1px solid var(--border)" }}>
-      <button onClick={() => onToggle(t.id, t.done)} style={{
-        width: 22, height: 22, borderRadius: 4, border: `2px solid ${t.done ? "var(--done)" : "var(--border)"}`,
-        background: t.done ? "var(--done)" : "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-        color: "#fff", fontSize: "0.65rem", flexShrink: 0,
-      }}>
-        {t.done ? "✓" : ""}
-      </button>
+      <div style={{ position: "relative", width: 22, height: 22, flexShrink: 0 }}>
+        <MiniConfetti active={celebrating} />
+        <button onClick={handleClick} style={{
+          width: 22, height: 22, borderRadius: 4, border: `2px solid ${t.done ? "var(--done)" : "var(--border)"}`,
+          background: t.done ? "var(--done)" : "transparent", cursor: t.done ? "default" : "pointer",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          color: "#fff", fontSize: "0.65rem", position: "relative", zIndex: 1,
+        }}>
+          {t.done ? "✓" : ""}
+        </button>
+      </div>
       <span style={{
         flex: 1, fontSize: "0.78rem", textDecoration: t.done ? "line-through" : "none",
         color: t.done ? "var(--fg-dim)" : "var(--fg)",
@@ -655,10 +689,12 @@ function TodoItem({ t, onToggle, onDelete }) {
         {t.text}
         {t.carried_from_id && <span style={{ fontSize: "0.55rem", color: "var(--fg-dim)", marginLeft: "0.3rem" }}>(gestern)</span>}
       </span>
-      <button onClick={() => onDelete(t.id)} style={{
-        background: "transparent", border: "none", color: "var(--fg-dim)", cursor: "pointer",
-        fontSize: "0.7rem", padding: "0.2rem", opacity: 0.5,
-      }}>×</button>
+      {!t.done && (
+        <button onClick={() => onDelete(t.id)} style={{
+          background: "transparent", border: "none", color: "var(--fg-dim)", cursor: "pointer",
+          fontSize: "0.7rem", padding: "0.2rem", opacity: 0.5,
+        }}>×</button>
+      )}
     </div>
   );
 }

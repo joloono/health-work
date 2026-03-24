@@ -36,7 +36,6 @@ export function playNotificationSound() {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const t = ctx.currentTime;
 
-    // Grundton: 432 Hz, langsames Ein- und Ausklingen
     const osc1 = ctx.createOscillator();
     const gain1 = ctx.createGain();
     osc1.connect(gain1);
@@ -49,7 +48,6 @@ export function playNotificationSound() {
     osc1.start(t);
     osc1.stop(t + 2.3);
 
-    // Oktave: 864 Hz, 1s nach Grundton-Peak
     const osc2 = ctx.createOscillator();
     const gain2 = ctx.createGain();
     osc2.connect(gain2);
@@ -61,9 +59,7 @@ export function playNotificationSound() {
     gain2.gain.exponentialRampToValueAtTime(0.001, t + 3.2);
     osc2.start(t + 1.0);
     osc2.stop(t + 3.3);
-  } catch {
-    // Audio not available
-  }
+  } catch {}
 }
 
 // Reverse: Oktave zuerst, dann Grundton (nach Bewegungspause)
@@ -72,7 +68,6 @@ export function playReturnSound() {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const t = ctx.currentTime;
 
-    // Oktave zuerst: 864 Hz
     const osc1 = ctx.createOscillator();
     const gain1 = ctx.createGain();
     osc1.connect(gain1);
@@ -85,7 +80,6 @@ export function playReturnSound() {
     osc1.start(t);
     osc1.stop(t + 2.3);
 
-    // Grundton danach: 432 Hz
     const osc2 = ctx.createOscillator();
     const gain2 = ctx.createGain();
     osc2.connect(gain2);
@@ -97,7 +91,24 @@ export function playReturnSound() {
     gain2.gain.exponentialRampToValueAtTime(0.001, t + 3.2);
     osc2.start(t + 1.0);
     osc2.stop(t + 3.3);
-  } catch {
-    // Audio not available
-  }
+  } catch {}
+}
+
+// Soft completion chime for todo cross-off: only 432 Hz, 2.7x longer
+export function playCompletionChime() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 432;
+    osc.type = "sine";
+    gain.gain.setValueAtTime(0.001, t);
+    gain.gain.exponentialRampToValueAtTime(0.2, t + 0.5);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 5.9);
+    osc.start(t);
+    osc.stop(t + 6.0);
+  } catch {}
 }
