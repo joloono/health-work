@@ -28,23 +28,23 @@ function useGlobalTimer() {
     const tick = () => {
       try {
         const raw = localStorage.getItem(TIMER_KEY);
-        if (!raw) { setInfo(null); document.title = "🏛️ Health System"; return; }
+        if (!raw) { setInfo(null); document.title = "Health System"; return; }
         const saved = JSON.parse(raw);
         if (saved.paused) {
           setInfo({ seconds: saved.pauseRemaining, running: false, intention: saved.intention });
           const mm = String(Math.floor(saved.pauseRemaining / 60)).padStart(2, "0");
           const ss = String(saved.pauseRemaining % 60).padStart(2, "0");
-          document.title = `⏸ ${mm}:${ss} — ${saved.intention || "Timer"} 🏛️`;
+          document.title = `⏸ ${mm}:${ss} — ${saved.intention || "Timer"} `;
         } else if (saved.endTime) {
           const left = Math.max(0, Math.ceil((saved.endTime - Date.now()) / 1000));
           setInfo({ seconds: left, running: left > 0, intention: saved.intention });
-          if (left <= 0) { localStorage.removeItem(TIMER_KEY); document.title = "🏛️ Health System"; }
+          if (left <= 0) { localStorage.removeItem(TIMER_KEY); document.title = "Health System"; }
           else {
             const mm = String(Math.floor(left / 60)).padStart(2, "0");
             const ss = String(left % 60).padStart(2, "0");
-            document.title = `${mm}:${ss} — ${saved.intention || "Timer"} 🏛️`;
+            document.title = `${mm}:${ss} — ${saved.intention || "Timer"} `;
           }
-        } else { setInfo(null); document.title = "🏛️ Health System"; }
+        } else { setInfo(null); document.title = "Health System"; }
       } catch { setInfo(null); }
     };
     tick();
@@ -87,7 +87,7 @@ function TimerBanner({ timerInfo, onClick }) {
 }
 
 const NAV_ITEMS = [
-  { id: "timer", label: "🏛️ Timer" },
+  { id: "timer", label: "Timer" },
   { id: "dashboard", label: "📊 Dashboard" },
   { id: "projects", label: "📁 Projekte" },
   { id: "categories", label: "🏷️ Kategorien" },

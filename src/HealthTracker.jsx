@@ -141,11 +141,11 @@ function PomodoroTimer({ duration = 1500, onComplete, soundEnabled = true, onTic
     if (remaining > 0) {
       const mm = String(Math.floor(remaining / 60)).padStart(2, "0");
       const ss = String(remaining % 60).padStart(2, "0");
-      document.title = `${mm}:${ss} — ${intention || "Timer"} 🏛️`;
+      document.title = `${mm}:${ss} — ${intention || "Timer"}`;
     } else if (remaining === 0 && intention) {
-      document.title = `✓ ${intention} — 🏛️ Health System`;
+      document.title = `✓ ${intention} — Health System`;
     }
-    return () => { document.title = "🏛️ Health System"; };
+    return () => { document.title = "Health System"; };
   }, [remaining, intention]);
 
   useEffect(() => {
@@ -277,7 +277,7 @@ function MovementPicker({ dayId, onComplete }) {
     if (running && secs > 0) {
       ref.current = setInterval(() => {
         setSecs((s) => {
-          if (s <= 1) { clearInterval(ref.current); setRunning(false); setTimerDone(true); return 0; }
+          if (s <= 1) { clearInterval(ref.current); setRunning(false); setTimerDone(true); playReturnSound(); return 0; }
           return s - 1;
         });
       }, 1000);
@@ -526,7 +526,9 @@ function TodoList({ todos, dayId, openYesterday, onUpdate }) {
   };
 
   const handleToggle = async (id, currentDone) => {
-    await api.toggleTodo(id, !currentDone);
+    const completing = !currentDone;
+    await api.toggleTodo(id, completing);
+    if (completing) playNotificationSound();
     onUpdate();
   };
 
@@ -818,14 +820,12 @@ export default function HealthTracker({ theme, settings, onSettingsChange }) {
   };
 
   const handleMovementComplete = async () => {
-    if (settings?.soundEnabled) playReturnSound();
     await loadData();
     setPhase("idle");
     resetConfig();
   };
 
   const handleSkipMovement = async () => {
-    if (settings?.soundEnabled) playReturnSound();
     await loadData();
     setPhase("idle");
     resetConfig();

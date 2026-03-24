@@ -43,112 +43,120 @@ function EnergyBar({ value, max = 2 }) {
 // ============================================================
 
 function Tageslog({ dayData }) {
+  const [openTodosOpen, setOpenTodosOpen] = useState(false);
   if (!dayData) return <Empty text="Keine Daten" />;
-  const { pomodoros, movements } = dayData;
+  const { pomodoros, movements, todos = [], openTodosYesterday = [] } = dayData;
   const completed = pomodoros.filter((p) => p.completed_at);
+  const doneTodos = todos.filter((t) => t.done && t.completed_at);
+  const openTodos = [...todos.filter((t) => !t.done), ...openTodosYesterday.filter((yt) => !todos.some((t) => t.carried_from_id === yt.id))];
 
-  if (!completed.length && !movements.length) return <Empty text="Noch keine Aktivitäten heute. Starte deinen ersten Pomodoro!" />;
+  if (!completed.length && !movements.length && !todos.length) return <Empty text="Noch keine Aktivitäten heute. Starte deinen ersten Pomodoro!" />;
 
   const totalPom = completed.length;
   const totalMin = completed.reduce((s, p) => s + (p.duration_minutes || 25), 0);
   const totalBiz = completed.reduce((s, p) => s + (p.biz_rating || 0), 0);
   const totalEnergy = completed.reduce((s, p) => s + (p.energy_rating || 0), 0);
   const avgBiz = totalPom > 0 ? (totalBiz / totalPom).toFixed(1) : "–";
-  const avgEnergy = totalPom > 0 ? (totalEnergy / totalPom).toFixed(1) : "–";
 
-  // Build timeline events
+  // Build unified timeline: entries + movements + completed todos
   const events = [
-    ...pomodoros.map((p) => ({ ...p, _type: "pom", _time: p.completed_at || p.started_at })),
+    ...completed.map((p) => ({ ...p, _type: "pom", _time: p.completed_at || p.started_at })),
     ...movements.map((m) => ({ ...m, _type: m.type, _time: m.completed_at })),
+    ...doneTodos.map((t) => ({ ...t, _type: "todo", _time: t.completed_at })),
   ].sort((a, b) => (b._time || "").localeCompare(a._time || ""));
 
   return (
     <div>
+      {/* Open todos — collapsible mini card */}
+      {openTodos.length > 0 && (
+        <div style={{ marginBottom: "0.8rem", border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
+          <button onClick={() => setOpenTodosOpen(!openTodosOpen)} style={{
+            width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+            padding: "0.45rem 0.6rem", background: "var(--muted)", border: "none", cursor: "pointer", fontFamily: "inherit",
+          }}>
+            <span style={{ fontSize: "0.65rem", fontWeight: 600, color: "var(--accent)" }}>
+              {openTodos.length} offene Aufgaben
+            </span>
+            <span style={{ fontSize: "0.6rem", color: "var(--fg-dim)", transform: openTodosOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>▾</span>
+          </button>
+          {openTodosOpen && (
+            <div style={{ padding: "0.3rem 0.6rem" }}>
+              {openTodos.map((t, i) => (
+                <div key={t.id || i} style={{ fontSize: "0.7rem", color: "var(--fg)", padding: "0.2rem 0", borderBottom: i < openTodos.length - 1 ? "1px solid var(--border)" : "none" }}>
+                  ○ {t.text}
+                  {t.carried_from_id && <span style={{ fontSize: "0.5rem", color: "var(--fg-dim)", marginLeft: "0.3rem" }}>(gestern)</span>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Summary strip */}
       <div style={{
         display: "flex", gap: "0.3rem", padding: "0.8rem 0.5rem", marginBottom: "1rem",
         background: "var(--muted)", borderRadius: 10,
       }}>
-        <StatCard value={totalPom} label="Pomodoros" sub={`${totalMin} min`} color="var(--accent)" />
+        <StatCard value={totalPom} label="Einträge" sub={`${totalMin} min`} color="var(--accent)" />
         <StatCard value={avgBiz} label="Ø Wert" sub={BIZ_MAP[Math.round(avgBiz)] || ""} color="var(--accent)" />
-        <StatCard value={`${totalEnergy > 0 ? "+" : ""}${totalEnergy}`} label="Energie" sub={avgEnergy > 0 ? "positiv" : avgEnergy < 0 ? "drain" : "neutral"} color={totalEnergy > 0 ? "var(--done)" : totalEnergy < 0 ? "var(--accent)" : "var(--fg-dim)"} />
+        <StatCard value={`${doneTodos.length}/${todos.length}`} label="Todos" color="var(--done)" />
       </div>
 
       {/* Timeline */}
       <div style={{ position: "relative", paddingLeft: "3.2rem" }}>
-        {/* Vertical line */}
         <div style={{ position: "absolute", left: "2.6rem", top: 0, bottom: 0, width: 2, background: "var(--border)", borderRadius: 1 }} />
 
         {events.map((ev, i) => {
+          if (ev._type === "todo") {
+            return (
+              <div key={`t-${i}`} style={{ position: "relative", marginBottom: "0.4rem" }}>
+                <div style={{ position: "absolute", left: "-3.2rem", top: "0.15rem", width: "2.4rem", fontSize: "0.55rem", fontFamily: "'JetBrains Mono', 'SF Mono', monospace", color: "var(--fg-dim)", textAlign: "right" }}>
+                  {fmtTime(ev._time)}
+                </div>
+                <div style={{ position: "absolute", left: "-0.85rem", top: "0.25rem", width: 8, height: 8, borderRadius: 2, background: "var(--done)", border: "2px solid var(--bg)" }} />
+                <div style={{ fontSize: "0.68rem", color: "var(--done)", fontWeight: 500, padding: "0.1rem 0" }}>
+                  ✓ {ev.text}
+                </div>
+              </div>
+            );
+          }
           if (ev._type === "pom") {
             return (
               <div key={`p-${i}`} style={{ position: "relative", marginBottom: "0.5rem" }}>
-                {/* Time label */}
-                <div style={{
-                  position: "absolute", left: "-3.2rem", top: "0.3rem", width: "2.4rem",
-                  fontSize: "0.58rem", fontFamily: "'JetBrains Mono', 'SF Mono', monospace", color: "var(--fg-dim)", textAlign: "right",
-                }}>
+                <div style={{ position: "absolute", left: "-3.2rem", top: "0.3rem", width: "2.4rem", fontSize: "0.58rem", fontFamily: "'JetBrains Mono', 'SF Mono', monospace", color: "var(--fg-dim)", textAlign: "right" }}>
                   {fmtTime(ev._time)}
                 </div>
-                {/* Dot */}
-                <div style={{
-                  position: "absolute", left: "-0.95rem", top: "0.45rem",
-                  width: 10, height: 10, borderRadius: "50%",
-                  background: ev.completed_at ? "var(--accent)" : "var(--border)",
-                  border: "2px solid var(--bg)",
-                }} />
-                {/* Card */}
-                <div style={{
-                  padding: "0.5rem 0.7rem", background: "var(--card-bg)", borderRadius: 8,
-                  borderLeft: `3px solid ${ev.project_color || "var(--border)"}`,
-                }}>
+                <div style={{ position: "absolute", left: "-0.95rem", top: "0.45rem", width: 10, height: 10, borderRadius: "50%", background: ev.completed_at ? "var(--accent)" : "var(--border)", border: "2px solid var(--bg)" }} />
+                <div style={{ padding: "0.5rem 0.7rem", background: "var(--card-bg)", borderRadius: 8, borderLeft: `3px solid ${ev.project_color || "var(--border)"}` }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "0.3rem", marginBottom: "0.2rem", flexWrap: "wrap" }}>
                     {ev.project_name && (
-                      <span style={{
-                        fontSize: "0.55rem", background: `${ev.project_color || "var(--accent)"}20`,
-                        color: ev.project_color || "var(--accent)", borderRadius: 3, padding: "0.05rem 0.35rem", fontWeight: 700,
-                      }}>
+                      <span style={{ fontSize: "0.55rem", background: `${ev.project_color || "var(--accent)"}20`, color: ev.project_color || "var(--accent)", borderRadius: 3, padding: "0.05rem 0.35rem", fontWeight: 700 }}>
                         {ev.project_name}
                       </span>
                     )}
                     <span style={{ fontSize: "0.55rem", color: "var(--fg-dim)" }}>{{"pomodoro":"🎯","meeting":"👥","walk":"🚶","recreation":"☕","eating":"🍽️","note":"📝"}[ev.entry_type] || "🎯"} {ev.duration_minutes || 25}min</span>
-                    {ev.retroactive ? <span style={{ fontSize: "0.5rem", color: "var(--fg-dim)", fontStyle: "italic" }}>retro</span> : null}
                   </div>
                   <div style={{ fontSize: "0.78rem", fontWeight: 500, lineHeight: 1.35 }}>{ev.intention}</div>
+                  {ev.notes && <div style={{ fontSize: "0.6rem", color: "var(--fg-dim)", marginTop: "0.15rem", fontStyle: "italic" }}>{ev.notes}</div>}
                   {(ev.biz_rating != null || ev.energy_rating != null) && (
                     <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginTop: "0.3rem" }}>
-                      {ev.biz_rating != null && (
-                        <span style={{ fontSize: "0.6rem", color: "var(--accent)", fontWeight: 600 }}>
-                          Wert {BIZ_MAP[ev.biz_rating] || "–"}
-                        </span>
-                      )}
-                      {ev.energy_rating != null && (
-                        <span style={{ fontSize: "0.6rem" }}>
-                          {ENERGY_MAP[String(ev.energy_rating)]?.icon || "⚪"}
-                        </span>
-                      )}
+                      {ev.biz_rating != null && <span style={{ fontSize: "0.6rem", color: "var(--accent)", fontWeight: 600 }}>Wert {BIZ_MAP[ev.biz_rating] || "–"}</span>}
+                      {ev.energy_rating != null && <span style={{ fontSize: "0.6rem" }}>{ENERGY_MAP[String(ev.energy_rating)]?.icon || "⚪"}</span>}
                     </div>
                   )}
                 </div>
               </div>
             );
           }
-          // Movement (mini or block)
+          // Movement
           return (
             <div key={`m-${i}`} style={{ position: "relative", marginBottom: "0.4rem" }}>
-              <div style={{
-                position: "absolute", left: "-3.2rem", top: "0.15rem", width: "2.4rem",
-                fontSize: "0.55rem", fontFamily: "'JetBrains Mono', 'SF Mono', monospace", color: "var(--fg-dim)", textAlign: "right",
-              }}>
+              <div style={{ position: "absolute", left: "-3.2rem", top: "0.15rem", width: "2.4rem", fontSize: "0.55rem", fontFamily: "'JetBrains Mono', 'SF Mono', monospace", color: "var(--fg-dim)", textAlign: "right" }}>
                 {fmtTime(ev._time)}
               </div>
-              <div style={{
-                position: "absolute", left: "-0.8rem", top: "0.25rem",
-                width: 6, height: 6, borderRadius: 2, background: "var(--done)",
-              }} />
+              <div style={{ position: "absolute", left: "-0.8rem", top: "0.25rem", width: 6, height: 6, borderRadius: 2, background: "var(--done)" }} />
               <div style={{ fontSize: "0.68rem", color: "var(--done)", fontWeight: 500, padding: "0.1rem 0" }}>
                 {ev._type === "mini" ? "↑" : "🚶"} {(ev.exercise || "").split(",").join(" + ")}
-                {ev._type === "block" && ev.duration_seconds > 0 && ` (${Math.round(ev.duration_seconds / 60)} min)`}
               </div>
             </div>
           );
