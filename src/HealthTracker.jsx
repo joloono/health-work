@@ -69,20 +69,34 @@ function PomodoroTimer({ duration = 1500, onComplete, soundEnabled = true, onTic
   const saved = loadTimer();
   const isResume = saved && saved.key === timerKey;
 
+  // Auto-start: if not resuming, start immediately
+  const autoStartTime = (!isResume) ? Date.now() + duration * 1000 : null;
   const [endTime, setEndTime] = useState(() => {
     if (isResume && saved.endTime && !saved.paused) return saved.endTime;
+    if (autoStartTime) return autoStartTime;
     return null;
   });
   const [pauseRemaining, setPauseRemaining] = useState(() => {
     if (isResume && saved.paused) return saved.pauseRemaining;
-    return duration;
+    return 0;
   });
-  const [running, setRunning] = useState(() => isResume && !saved.paused && saved.endTime > Date.now());
+  const [running, setRunning] = useState(() => {
+    if (isResume) return !saved.paused && saved.endTime > Date.now();
+    return true; // auto-start
+  });
   const [remaining, setRemaining] = useState(() => {
     if (isResume && saved.endTime && !saved.paused) return Math.max(0, Math.ceil((saved.endTime - Date.now()) / 1000));
     if (isResume && saved.paused) return saved.pauseRemaining;
     return duration;
   });
+  // Persist auto-start to localStorage
+  const autoStarted = useRef(false);
+  useEffect(() => {
+    if (!isResume && !autoStarted.current && autoStartTime) {
+      autoStarted.current = true;
+      saveTimer({ key: timerKey, endTime: autoStartTime, paused: false, pauseRemaining: 0, intention, ...persist });
+    }
+  }, []);
   const ref = useRef(null);
   const soundPlayed = useRef(false);
 
