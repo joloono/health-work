@@ -91,16 +91,16 @@ function syncTimerFromServer(serverTimer) {
 
 function RippleOverlay({ onDone }) {
   useEffect(() => {
-    const t = setTimeout(onDone, 1600);
+    const t = setTimeout(onDone, 7000);
     return () => clearTimeout(t);
   }, [onDone]);
   const size = Math.ceil(Math.hypot(window.innerWidth, window.innerHeight)) * 2;
   const center = { position: "absolute", left: "50%", top: "50%", width: size, height: size, marginLeft: -size / 2, marginTop: -size / 2, borderRadius: "50%" };
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 200, pointerEvents: "none" }}>
-      <div style={{ ...center, background: "var(--accent)", animation: "rippleFill 1.5s ease-out forwards" }} />
-      {[0, 0.2, 0.4].map((delay, i) => (
-        <div key={i} style={{ ...center, border: `${3 - i}px solid var(--accent)`, background: "transparent", animation: `rippleRing 1.5s ease-out ${delay}s forwards`, opacity: 0 }} />
+      <div style={{ ...center, background: "var(--accent)", animation: "rippleFill 6.48s ease-out forwards" }} />
+      {[0, 0.86, 1.73].map((delay, i) => (
+        <div key={i} style={{ ...center, border: `${3 - i}px solid var(--accent)`, background: "transparent", animation: `rippleRing 6.48s ease-out ${delay}s forwards`, opacity: 0 }} />
       ))}
     </div>
   );
@@ -909,7 +909,7 @@ export default function HealthTracker({ theme, settings, onSettingsChange }) {
       {/* Late night banner */}
       {isLate && (
         <div style={{ background: "var(--accent)", color: "#fff", padding: "0.5rem 0.8rem", borderRadius: 8, marginBottom: "0.8rem", fontSize: "0.72rem", fontWeight: 600, textAlign: "center" }}>
-          Die Stunden vor Mitternacht sind doppelt so viel wert.
+          Die Stunden vor Mitternacht sind doppelt so viel wert, die danach kosten doppelt so viel. Wind down now.
         </div>
       )}
 
