@@ -560,7 +560,9 @@ export default function HealthTracker({ theme, settings, onSettingsChange }) {
     intention: "", entryType: "pomodoro", duration: 25, projectId: null, tags: [], notes: "",
   });
   const [currentEntryId, setCurrentEntryId] = useState(null);
-  const [showDetails, setShowDetails] = useState(false);
+  const [showNotes, setShowNotes] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
+  const [showNewProject, setShowNewProject] = useState(false);
 
   // Mobile tab
   const [mobileTab, setMobileTab] = useState("timer");
@@ -673,7 +675,18 @@ export default function HealthTracker({ theme, settings, onSettingsChange }) {
   const resetConfig = () => {
     setEntryConfig({ intention: "", entryType: "pomodoro", duration: 25, projectId: null, tags: [], notes: "" });
     setCurrentEntryId(null);
-    setShowDetails(false);
+    setShowNotes(false);
+    setShowNewProject(false);
+    setNewProjectName("");
+  };
+
+  const handleCreateProject = async () => {
+    if (!newProjectName.trim()) return;
+    const { id } = await api.createProject(newProjectName.trim());
+    setEntryConfig((c) => ({ ...c, projectId: id }));
+    setNewProjectName("");
+    setShowNewProject(false);
+    await loadData();
   };
 
   // --- Render ---
@@ -769,55 +782,71 @@ export default function HealthTracker({ theme, settings, onSettingsChange }) {
             </div>
           </div>
 
-          {/* Project + Details */}
+          {/* Project, Category, Notes — shown after intention */}
           {entryConfig.intention.trim() && (
             <>
-              {/* Project — always visible */}
-              {projects.length > 0 && (
-                <div>
-                  <div style={labelStyle}>Projekt</div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem" }}>
-                    {projects.map((p) => (
-                      <button key={p.id} onClick={() => setEntryConfig((c) => ({ ...c, projectId: c.projectId === p.id ? null : p.id }))} className="chip-interactive"
-                        style={chipStyle(entryConfig.projectId === p.id, p.color)}>
-                        {p.name}
-                      </button>
-                    ))}
-                  </div>
+              {/* Projekt */}
+              <div>
+                <div style={labelStyle}>Projekt</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem" }}>
+                  {projects.map((p) => (
+                    <button key={p.id} onClick={() => setEntryConfig((c) => ({ ...c, projectId: c.projectId === p.id ? null : p.id }))} className="chip-interactive"
+                      style={chipStyle(entryConfig.projectId === p.id, p.color)}>
+                      {p.name}
+                    </button>
+                  ))}
+                  {!showNewProject && (
+                    <button onClick={() => setShowNewProject(true)} className="chip-interactive"
+                      style={{ ...chipStyle(false), fontStyle: "italic", opacity: 0.7 }}>
+                      + Neu
+                    </button>
+                  )}
                 </div>
-              )}
+                {showNewProject && (
+                  <div style={{ display: "flex", gap: "0.3rem", marginTop: "0.3rem" }}>
+                    <input value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleCreateProject()}
+                      placeholder="Projektname..." style={{ ...inputStyle, fontSize: "0.75rem", flex: 1 }} autoFocus />
+                    <button onClick={handleCreateProject} className="btn-interactive" disabled={!newProjectName.trim()}
+                      style={{ ...btnStyle(newProjectName.trim() ? "var(--accent)" : "var(--muted)", newProjectName.trim() ? "#fff" : "var(--fg-dim)", "0.72rem"), padding: "0.4rem 0.7rem", opacity: newProjectName.trim() ? 1 : 0.5 }}>
+                      Erstellen
+                    </button>
+                  </div>
+                )}
+              </div>
 
-              {/* Tags + Notes — expandable */}
-              {!showDetails && (
-                <button onClick={() => setShowDetails(true)} style={{ background: "transparent", border: "none", fontSize: "0.65rem", color: "var(--fg-dim)", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
-                  + Tags, Notiz
+              {/* Wert-Kategorie — always visible */}
+              <div>
+                <div style={labelStyle}>Worauf zahlt das ein?</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem" }}>
+                  {VALUE_TAGS.map((tag) => (
+                    <button key={tag.id} onClick={() => setEntryConfig((c) => ({
+                      ...c, tags: c.tags.includes(tag.id) ? c.tags.filter((t) => t !== tag.id) : [...c.tags, tag.id],
+                    }))} className="chip-interactive" style={chipStyle(entryConfig.tags.includes(tag.id), tag.color)}>
+                      {tag.icon} {tag.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Notiz — expandable */}
+              {!showNotes && (
+                <button onClick={() => setShowNotes(true)} style={{ background: "transparent", border: "none", fontSize: "0.65rem", color: "var(--fg-dim)", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
+                  + Notiz hinzufügen
                 </button>
               )}
-              {showDetails && (
-                <>
-                  <div>
-                    <div style={labelStyle}>Wert-Kategorie</div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem" }}>
-                      {VALUE_TAGS.map((tag) => (
-                        <button key={tag.id} onClick={() => setEntryConfig((c) => ({
-                          ...c, tags: c.tags.includes(tag.id) ? c.tags.filter((t) => t !== tag.id) : [...c.tags, tag.id],
-                        }))} className="chip-interactive" style={chipStyle(entryConfig.tags.includes(tag.id), tag.color)}>
-                          {tag.icon} {tag.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <div style={labelStyle}>Notiz</div>
-                    <input value={entryConfig.notes} onChange={(e) => setEntryConfig((c) => ({ ...c, notes: e.target.value }))}
-                      placeholder="Optional..." style={{ ...inputStyle, fontSize: "0.78rem" }} />
-                  </div>
-                </>
+              {showNotes && (
+                <div>
+                  <div style={labelStyle}>Notiz</div>
+                  <input value={entryConfig.notes} onChange={(e) => setEntryConfig((c) => ({ ...c, notes: e.target.value }))}
+                    placeholder="Optional..." style={{ ...inputStyle, fontSize: "0.78rem" }} />
+                </div>
               )}
 
               {/* Start Button */}
               <button onClick={handleStartEntry} className="btn-interactive" style={{
                 ...btnStyle("var(--accent)", "#fff"), width: "100%", marginTop: "0.3rem",
+                padding: "0.65rem 1.4rem",
               }}>
                 {TIMER_TYPES.has(entryConfig.entryType) ? `Timer starten (${entryConfig.duration} min)` : "Eintrag loggen"}
               </button>
