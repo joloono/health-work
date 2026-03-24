@@ -60,7 +60,7 @@ function Tageslog({ dayData }) {
   const events = [
     ...pomodoros.map((p) => ({ ...p, _type: "pom", _time: p.completed_at || p.started_at })),
     ...movements.map((m) => ({ ...m, _type: m.type, _time: m.completed_at })),
-  ].sort((a, b) => (a._time || "").localeCompare(b._time || ""));
+  ].sort((a, b) => (b._time || "").localeCompare(a._time || ""));
 
   return (
     <div>

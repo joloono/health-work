@@ -337,7 +337,7 @@ function DayLog({ entries, movements }) {
   const events = [
     ...completed.map((e) => ({ ...e, _type: "entry", _time: e.completed_at || e.started_at })),
     ...movements.map((m) => ({ ...m, _type: "move", _time: m.completed_at })),
-  ].sort((a, b) => (a._time || "").localeCompare(b._time || ""));
+  ].sort((a, b) => (b._time || "").localeCompare(a._time || ""));
 
   // Daily goal: 8 pomodoro-equivalents = 200 min
   const DAILY_GOAL = 200;
@@ -403,54 +403,87 @@ function DayLog({ entries, movements }) {
         </div>
       </div>
 
-      {/* Timeline */}
-      <div style={{ position: "relative", paddingLeft: "3rem" }}>
-        <div style={{ position: "absolute", left: "2.4rem", top: 0, bottom: 0, width: 2, background: "var(--border)", borderRadius: 1 }} />
-        {events.map((ev, i) => {
-          if (ev._type === "entry") {
-            const typeIcon = TYPE_ICON[ev.entry_type] || "🎯";
-            return (
-              <div key={`e-${i}`} style={{ position: "relative", marginBottom: "0.4rem" }}>
-                <div style={{ position: "absolute", left: "-3rem", top: "0.25rem", width: "2.2rem", fontSize: "0.55rem", fontFamily: "'JetBrains Mono', 'SF Mono', monospace", color: "var(--fg-dim)", textAlign: "right" }}>
-                  {fmtTime(ev._time)}
-                </div>
-                <div style={{ position: "absolute", left: "-0.85rem", top: "0.35rem", width: 10, height: 10, borderRadius: "50%", background: ev.completed_at ? "var(--accent)" : "var(--border)", border: "2px solid var(--bg)" }} />
-                <div style={{ padding: "0.4rem 0.6rem", background: "var(--card-bg)", borderRadius: 6, borderLeft: `3px solid ${ev.project_color || "var(--border)"}` }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.3rem", marginBottom: "0.15rem", flexWrap: "wrap" }}>
-                    <span style={{ fontSize: "0.7rem" }}>{typeIcon}</span>
-                    <span style={{ fontSize: "0.55rem", fontFamily: "'JetBrains Mono', 'SF Mono', monospace", color: "var(--fg-dim)" }}>{ev.duration_minutes || 25}min</span>
-                    {ev.project_name && (
-                      <span style={{ fontSize: "0.5rem", background: `${ev.project_color || "var(--accent)"}20`, color: ev.project_color || "var(--accent)", borderRadius: 3, padding: "0.05rem 0.3rem", fontWeight: 700 }}>
-                        {ev.project_name}
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ fontSize: "0.72rem", fontWeight: 500, lineHeight: 1.3 }}>{ev.intention}</div>
-                  {ev.notes && <div style={{ fontSize: "0.6rem", color: "var(--fg-dim)", marginTop: "0.15rem", fontStyle: "italic" }}>{ev.notes}</div>}
-                  {(ev.biz_rating != null || ev.energy_rating != null) && (
-                    <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.2rem", fontSize: "0.55rem" }}>
-                      {ev.biz_rating != null && <span style={{ color: "var(--accent)" }}>{BIZ_MAP[ev.biz_rating]}</span>}
-                      {ev.energy_rating != null && <span>{ENERGY_MAP[String(ev.energy_rating)]}</span>}
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          }
-          // Movement
-          return (
-            <div key={`m-${i}`} style={{ position: "relative", marginBottom: "0.3rem" }}>
-              <div style={{ position: "absolute", left: "-3rem", top: "0.1rem", width: "2.2rem", fontSize: "0.52rem", fontFamily: "'JetBrains Mono', 'SF Mono', monospace", color: "var(--fg-dim)", textAlign: "right" }}>
-                {fmtTime(ev._time)}
-              </div>
-              <div style={{ position: "absolute", left: "-0.7rem", top: "0.2rem", width: 6, height: 6, borderRadius: 2, background: "var(--done)" }} />
-              <div style={{ fontSize: "0.65rem", color: "var(--done)", fontWeight: 500 }}>
-                ↑ {(ev.exercise || "").split(",").join(" + ")}
-              </div>
+      {/* Timeline — show 4, fade, expand */}
+      <TimelineList events={events} fmtTime={fmtTime} />
+    </div>
+  );
+}
+
+function TimelineEvent({ ev, fmtTime }) {
+  if (ev._type === "entry") {
+    const typeIcon = TYPE_ICON[ev.entry_type] || "🎯";
+    return (
+      <div style={{ position: "relative", marginBottom: "0.4rem" }}>
+        <div style={{ position: "absolute", left: "-3rem", top: "0.25rem", width: "2.2rem", fontSize: "0.55rem", fontFamily: "'JetBrains Mono', 'SF Mono', monospace", color: "var(--fg-dim)", textAlign: "right" }}>
+          {fmtTime(ev._time)}
+        </div>
+        <div style={{ position: "absolute", left: "-0.85rem", top: "0.35rem", width: 10, height: 10, borderRadius: "50%", background: ev.completed_at ? "var(--accent)" : "var(--border)", border: "2px solid var(--bg)" }} />
+        <div style={{ padding: "0.4rem 0.6rem", background: "var(--card-bg)", borderRadius: 6, borderLeft: `3px solid ${ev.project_color || "var(--border)"}` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.3rem", marginBottom: "0.15rem", flexWrap: "wrap" }}>
+            <span style={{ fontSize: "0.7rem" }}>{typeIcon}</span>
+            <span style={{ fontSize: "0.55rem", fontFamily: "'JetBrains Mono', 'SF Mono', monospace", color: "var(--fg-dim)" }}>{ev.duration_minutes || 25}min</span>
+            {ev.project_name && (
+              <span style={{ fontSize: "0.5rem", background: `${ev.project_color || "var(--accent)"}20`, color: ev.project_color || "var(--accent)", borderRadius: 3, padding: "0.05rem 0.3rem", fontWeight: 700 }}>
+                {ev.project_name}
+              </span>
+            )}
+          </div>
+          <div style={{ fontSize: "0.72rem", fontWeight: 500, lineHeight: 1.3 }}>{ev.intention}</div>
+          {ev.notes && <div style={{ fontSize: "0.6rem", color: "var(--fg-dim)", marginTop: "0.15rem", fontStyle: "italic" }}>{ev.notes}</div>}
+          {(ev.biz_rating != null || ev.energy_rating != null) && (
+            <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.2rem", fontSize: "0.55rem" }}>
+              {ev.biz_rating != null && <span style={{ color: "var(--accent)" }}>{BIZ_MAP[ev.biz_rating]}</span>}
+              {ev.energy_rating != null && <span>{ENERGY_MAP[String(ev.energy_rating)]}</span>}
             </div>
-          );
-        })}
+          )}
+        </div>
       </div>
+    );
+  }
+  return (
+    <div style={{ position: "relative", marginBottom: "0.3rem" }}>
+      <div style={{ position: "absolute", left: "-3rem", top: "0.1rem", width: "2.2rem", fontSize: "0.52rem", fontFamily: "'JetBrains Mono', 'SF Mono', monospace", color: "var(--fg-dim)", textAlign: "right" }}>
+        {fmtTime(ev._time)}
+      </div>
+      <div style={{ position: "absolute", left: "-0.7rem", top: "0.2rem", width: 6, height: 6, borderRadius: 2, background: "var(--done)" }} />
+      <div style={{ fontSize: "0.65rem", color: "var(--done)", fontWeight: 500 }}>
+        ↑ {(ev.exercise || "").split(",").join(" + ")}
+      </div>
+    </div>
+  );
+}
+
+const PREVIEW_COUNT = 4;
+
+function TimelineList({ events, fmtTime }) {
+  const [expanded, setExpanded] = useState(false);
+  const hasMore = events.length > PREVIEW_COUNT;
+  const visible = expanded ? events : events.slice(0, PREVIEW_COUNT);
+
+  return (
+    <div style={{ position: "relative", paddingLeft: "3rem" }}>
+      <div style={{ position: "absolute", left: "2.4rem", top: 0, bottom: 0, width: 2, background: "var(--border)", borderRadius: 1 }} />
+      {visible.map((ev, i) => <TimelineEvent key={`${ev._type}-${i}`} ev={ev} fmtTime={fmtTime} />)}
+      {hasMore && !expanded && (
+        <div style={{ position: "relative" }}>
+          <div style={{ position: "absolute", top: "-2.5rem", left: "-3rem", right: 0, height: "2.5rem",
+            background: "linear-gradient(to bottom, transparent, var(--bg))", pointerEvents: "none" }} />
+          <button onClick={() => setExpanded(true)} style={{
+            width: "100%", padding: "0.4rem", background: "transparent", border: "1px solid var(--border)",
+            borderRadius: 6, fontSize: "0.65rem", color: "var(--fg-dim)", cursor: "pointer", fontFamily: "inherit",
+          }}>
+            {events.length - PREVIEW_COUNT} weitere anzeigen
+          </button>
+        </div>
+      )}
+      {hasMore && expanded && (
+        <button onClick={() => setExpanded(false)} style={{
+          width: "100%", padding: "0.3rem", background: "transparent", border: "none",
+          fontSize: "0.6rem", color: "var(--fg-dim)", cursor: "pointer", fontFamily: "inherit",
+        }}>
+          Einklappen
+        </button>
+      )}
     </div>
   );
 }
@@ -529,32 +562,88 @@ function TodoList({ todos, dayId, openYesterday, onUpdate }) {
         }}>+</button>
       </div>
 
-      {/* Todo items */}
+      {/* Todo items — show 4, fade, expand */}
       {todos.length === 0 && (
         <div style={{ padding: "1.5rem", textAlign: "center", color: "var(--fg-dim)", fontSize: "0.78rem", fontStyle: "italic" }}>Keine Aufgaben.</div>
       )}
-      {todos.map((t) => (
-        <div key={t.id} style={{ display: "flex", alignItems: "center", gap: "0.4rem", padding: "0.35rem 0.3rem", borderBottom: "1px solid var(--border)" }}>
-          <button onClick={() => handleToggle(t.id, t.done)} style={{
-            width: 22, height: 22, borderRadius: 4, border: `2px solid ${t.done ? "var(--done)" : "var(--border)"}`,
-            background: t.done ? "var(--done)" : "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-            color: "#fff", fontSize: "0.65rem", flexShrink: 0,
+      <TodoItemList todos={todos} onToggle={handleToggle} onDelete={handleDelete} />
+    </div>
+  );
+}
+
+function TodoItem({ t, onToggle, onDelete }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", padding: "0.35rem 0.3rem", borderBottom: "1px solid var(--border)" }}>
+      <button onClick={() => onToggle(t.id, t.done)} style={{
+        width: 22, height: 22, borderRadius: 4, border: `2px solid ${t.done ? "var(--done)" : "var(--border)"}`,
+        background: t.done ? "var(--done)" : "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+        color: "#fff", fontSize: "0.65rem", flexShrink: 0,
+      }}>
+        {t.done ? "✓" : ""}
+      </button>
+      <span style={{
+        flex: 1, fontSize: "0.78rem", textDecoration: t.done ? "line-through" : "none",
+        color: t.done ? "var(--fg-dim)" : "var(--fg)",
+      }}>
+        {t.text}
+        {t.carried_from_id && <span style={{ fontSize: "0.55rem", color: "var(--fg-dim)", marginLeft: "0.3rem" }}>(gestern)</span>}
+      </span>
+      <button onClick={() => onDelete(t.id)} style={{
+        background: "transparent", border: "none", color: "var(--fg-dim)", cursor: "pointer",
+        fontSize: "0.7rem", padding: "0.2rem", opacity: 0.5,
+      }}>×</button>
+    </div>
+  );
+}
+
+function TodoItemList({ todos, onToggle, onDelete }) {
+  const [expanded, setExpanded] = useState(false);
+  if (todos.length === 0) return null;
+  const hasMore = todos.length > PREVIEW_COUNT;
+  const visible = expanded ? todos : todos.slice(0, PREVIEW_COUNT);
+
+  return (
+    <div style={{ position: "relative" }}>
+      {visible.map((t) => <TodoItem key={t.id} t={t} onToggle={onToggle} onDelete={onDelete} />)}
+      {hasMore && !expanded && (
+        <div style={{ position: "relative" }}>
+          <div style={{ position: "absolute", top: "-2rem", left: 0, right: 0, height: "2rem",
+            background: "linear-gradient(to bottom, transparent, var(--bg))", pointerEvents: "none" }} />
+          <button onClick={() => setExpanded(true)} style={{
+            width: "100%", padding: "0.4rem", background: "transparent", border: "1px solid var(--border)",
+            borderRadius: 6, fontSize: "0.65rem", color: "var(--fg-dim)", cursor: "pointer", fontFamily: "inherit", marginTop: "0.3rem",
           }}>
-            {t.done ? "✓" : ""}
+            {todos.length - PREVIEW_COUNT} weitere anzeigen
           </button>
-          <span style={{
-            flex: 1, fontSize: "0.78rem", textDecoration: t.done ? "line-through" : "none",
-            color: t.done ? "var(--fg-dim)" : "var(--fg)",
-          }}>
-            {t.text}
-            {t.carried_from_id && <span style={{ fontSize: "0.55rem", color: "var(--fg-dim)", marginLeft: "0.3rem" }}>(gestern)</span>}
-          </span>
-          <button onClick={() => handleDelete(t.id)} style={{
-            background: "transparent", border: "none", color: "var(--fg-dim)", cursor: "pointer",
-            fontSize: "0.7rem", padding: "0.2rem", opacity: 0.5,
-          }}>×</button>
         </div>
-      ))}
+      )}
+      {hasMore && expanded && (
+        <button onClick={() => setExpanded(false)} style={{
+          width: "100%", padding: "0.3rem", background: "transparent", border: "none",
+          fontSize: "0.6rem", color: "var(--fg-dim)", cursor: "pointer", fontFamily: "inherit",
+        }}>
+          Einklappen
+        </button>
+      )}
+    </div>
+  );
+}
+
+// --- Collapsible Section ---
+
+function CollapsibleSection({ title, defaultOpen = true, children }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div>
+      <button onClick={() => setOpen(!open)} style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%",
+        background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit",
+        padding: "0.3rem 0", marginBottom: open ? "0.4rem" : 0,
+      }}>
+        <span style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: "0.9rem", fontWeight: 700, color: "var(--fg)" }}>{title}</span>
+        <span style={{ fontSize: "0.65rem", color: "var(--fg-dim)", transform: open ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>▾</span>
+      </button>
+      {open && children}
     </div>
   );
 }
@@ -1119,15 +1208,13 @@ export default function HealthTracker({ theme, settings, onSettingsChange }) {
       {isDesktop && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: "1.5rem" }}>
           <div>{renderTimerPanel()}</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-            <div>
-              <h3 style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: "0.9rem", fontWeight: 700, margin: "0 0 0.5rem" }}>Tageslog</h3>
+          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+            <CollapsibleSection title={`Tageslog (${entries.filter((e) => e.completed_at).length})`} defaultOpen={true}>
               {renderLogPanel()}
-            </div>
-            <div>
-              <h3 style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: "0.9rem", fontWeight: 700, margin: "0 0 0.5rem" }}>Todos</h3>
+            </CollapsibleSection>
+            <CollapsibleSection title={`Todos (${(dayData.todos || []).filter((t) => !t.done).length} offen)`} defaultOpen={true}>
               {renderTodosPanel()}
-            </div>
+            </CollapsibleSection>
           </div>
         </div>
       )}
