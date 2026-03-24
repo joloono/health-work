@@ -138,7 +138,7 @@ function PomodoroTimer({ duration = 1500, onComplete, soundEnabled = true, onTic
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.6rem", padding: "0.3rem 0 0.8rem" }}>
       {intention && (
-        <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "1.05rem", fontWeight: 700, textAlign: "center", lineHeight: 1.3, maxWidth: 280, padding: "0 0.5rem" }}>
+        <div style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: "1.05rem", fontWeight: 700, textAlign: "center", lineHeight: 1.3, maxWidth: 280, padding: "0 0.5rem" }}>
           {intention}
         </div>
       )}
@@ -150,7 +150,7 @@ function PomodoroTimer({ duration = 1500, onComplete, soundEnabled = true, onTic
             transform={`rotate(-90 ${size/2} ${size/2})`} style={{ transition: "stroke-dashoffset 0.3s ease" }} />
         </svg>
         <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "2.4rem", fontWeight: 700, color: done ? "var(--done)" : "var(--fg)" }}>
+          <span style={{ fontFamily: "'JetBrains Mono', 'SF Mono', monospace", fontSize: "2.4rem", fontWeight: 700, color: done ? "var(--done)" : "var(--fg)" }}>
             {String(Math.floor(remaining / 60)).padStart(2, "0")}:{String(remaining % 60).padStart(2, "0")}
           </span>
           <span style={{ fontSize: "0.55rem", color: done ? "var(--done)" : "var(--fg-dim)", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 600 }}>
@@ -262,7 +262,7 @@ function MovementPicker({ dayId, onComplete }) {
           <div style={{ fontSize: "0.65rem", color: "var(--fg-dim)", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600 }}>
             Mindestens 1 Minute bewegen
           </div>
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "1.5rem", fontWeight: 700 }}>
+          <span style={{ fontFamily: "'JetBrains Mono', 'SF Mono', monospace", fontSize: "1.5rem", fontWeight: 700 }}>
             {String(Math.floor(secs / 60)).padStart(2, "0")}:{String(secs % 60).padStart(2, "0")}
           </span>
           <button onClick={() => setRunning(!running)} className="btn-interactive" style={btnStyle(running ? "var(--muted)" : "var(--accent)", running ? "var(--fg)" : "#fff", "0.78rem")}>
@@ -341,7 +341,7 @@ function DayLog({ entries, movements }) {
           <span style={{ fontSize: "0.65rem", fontWeight: 600, color: goalReached ? "var(--done)" : "var(--fg-dim)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
             {goalReached ? "Tagesziel erreicht!" : "Tagesziel"}
           </span>
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "0.65rem", fontWeight: 700, color: goalReached ? "var(--done)" : "var(--accent)" }}>
+          <span style={{ fontFamily: "'JetBrains Mono', 'SF Mono', monospace", fontSize: "0.65rem", fontWeight: 700, color: goalReached ? "var(--done)" : "var(--accent)" }}>
             {totalMin} / {DAILY_GOAL} min
           </span>
         </div>
@@ -376,15 +376,15 @@ function DayLog({ entries, movements }) {
       {/* Summary */}
       <div style={{ display: "flex", gap: "0.3rem", padding: "0.6rem 0.4rem", marginBottom: "0.8rem", background: "var(--muted)", borderRadius: 8 }}>
         <div style={{ flex: 1, textAlign: "center" }}>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "1.2rem", fontWeight: 700, color: "var(--accent)" }}>{totalMin}</div>
+          <div style={{ fontFamily: "'JetBrains Mono', 'SF Mono', monospace", fontSize: "1.2rem", fontWeight: 700, color: "var(--accent)" }}>{totalMin}</div>
           <div style={{ fontSize: "0.55rem", color: "var(--fg-dim)", fontWeight: 600, textTransform: "uppercase" }}>Minuten</div>
         </div>
         <div style={{ flex: 1, textAlign: "center" }}>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "1.2rem", fontWeight: 700 }}>{count}</div>
+          <div style={{ fontFamily: "'JetBrains Mono', 'SF Mono', monospace", fontSize: "1.2rem", fontWeight: 700 }}>{count}</div>
           <div style={{ fontSize: "0.55rem", color: "var(--fg-dim)", fontWeight: 600, textTransform: "uppercase" }}>Einträge</div>
         </div>
         <div style={{ flex: 1, textAlign: "center" }}>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "1.2rem", fontWeight: 700, color: "var(--done)" }}>{movements.length}</div>
+          <div style={{ fontFamily: "'JetBrains Mono', 'SF Mono', monospace", fontSize: "1.2rem", fontWeight: 700, color: "var(--done)" }}>{movements.length}</div>
           <div style={{ fontSize: "0.55rem", color: "var(--fg-dim)", fontWeight: 600, textTransform: "uppercase" }}>Bewegung</div>
         </div>
       </div>
@@ -397,14 +397,14 @@ function DayLog({ entries, movements }) {
             const typeIcon = TYPE_ICON[ev.entry_type] || "🎯";
             return (
               <div key={`e-${i}`} style={{ position: "relative", marginBottom: "0.4rem" }}>
-                <div style={{ position: "absolute", left: "-3rem", top: "0.25rem", width: "2.2rem", fontSize: "0.55rem", fontFamily: "'JetBrains Mono', monospace", color: "var(--fg-dim)", textAlign: "right" }}>
+                <div style={{ position: "absolute", left: "-3rem", top: "0.25rem", width: "2.2rem", fontSize: "0.55rem", fontFamily: "'JetBrains Mono', 'SF Mono', monospace", color: "var(--fg-dim)", textAlign: "right" }}>
                   {fmtTime(ev._time)}
                 </div>
                 <div style={{ position: "absolute", left: "-0.85rem", top: "0.35rem", width: 10, height: 10, borderRadius: "50%", background: ev.completed_at ? "var(--accent)" : "var(--border)", border: "2px solid var(--bg)" }} />
                 <div style={{ padding: "0.4rem 0.6rem", background: "var(--card-bg)", borderRadius: 6, borderLeft: `3px solid ${ev.project_color || "var(--border)"}` }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "0.3rem", marginBottom: "0.15rem", flexWrap: "wrap" }}>
                     <span style={{ fontSize: "0.7rem" }}>{typeIcon}</span>
-                    <span style={{ fontSize: "0.55rem", fontFamily: "'JetBrains Mono', monospace", color: "var(--fg-dim)" }}>{ev.duration_minutes || 25}min</span>
+                    <span style={{ fontSize: "0.55rem", fontFamily: "'JetBrains Mono', 'SF Mono', monospace", color: "var(--fg-dim)" }}>{ev.duration_minutes || 25}min</span>
                     {ev.project_name && (
                       <span style={{ fontSize: "0.5rem", background: `${ev.project_color || "var(--accent)"}20`, color: ev.project_color || "var(--accent)", borderRadius: 3, padding: "0.05rem 0.3rem", fontWeight: 700 }}>
                         {ev.project_name}
@@ -426,7 +426,7 @@ function DayLog({ entries, movements }) {
           // Movement
           return (
             <div key={`m-${i}`} style={{ position: "relative", marginBottom: "0.3rem" }}>
-              <div style={{ position: "absolute", left: "-3rem", top: "0.1rem", width: "2.2rem", fontSize: "0.52rem", fontFamily: "'JetBrains Mono', monospace", color: "var(--fg-dim)", textAlign: "right" }}>
+              <div style={{ position: "absolute", left: "-3rem", top: "0.1rem", width: "2.2rem", fontSize: "0.52rem", fontFamily: "'JetBrains Mono', 'SF Mono', monospace", color: "var(--fg-dim)", textAlign: "right" }}>
                 {fmtTime(ev._time)}
               </div>
               <div style={{ position: "absolute", left: "-0.7rem", top: "0.2rem", width: 6, height: 6, borderRadius: 2, background: "var(--done)" }} />
@@ -695,21 +695,21 @@ export default function HealthTracker({ theme, settings, onSettingsChange }) {
           <div style={{ fontSize: "0.68rem", color: "var(--fg-dim)" }}>
             {now.toLocaleDateString("de-CH", { weekday: "short", day: "numeric", month: "short" })}
           </div>
-          <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "0.85rem", fontWeight: 700, marginTop: "0.1rem" }}>
+          <div style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: "0.85rem", fontWeight: 700, marginTop: "0.1rem" }}>
             {rank.name} <span style={{ fontSize: "0.65rem", color: "var(--fg-dim)", fontWeight: 400 }}>{rank.title}</span>
           </div>
         </div>
         <div style={{ display: "flex", gap: "0.8rem", alignItems: "center" }}>
           <div style={{ textAlign: "center" }}>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "1rem", fontWeight: 700, color: "var(--accent)" }}>{effectiveXP}</div>
+            <div style={{ fontFamily: "'JetBrains Mono', 'SF Mono', monospace", fontSize: "1rem", fontWeight: 700, color: "var(--accent)" }}>{effectiveXP}</div>
             <div style={{ fontSize: "0.5rem", color: "var(--fg-dim)", fontWeight: 600, textTransform: "uppercase" }}>XP</div>
           </div>
           <div style={{ textAlign: "center" }}>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "1rem", fontWeight: 700, color: "var(--done)" }}>{totalMinutes}</div>
+            <div style={{ fontFamily: "'JetBrains Mono', 'SF Mono', monospace", fontSize: "1rem", fontWeight: 700, color: "var(--done)" }}>{totalMinutes}</div>
             <div style={{ fontSize: "0.5rem", color: "var(--fg-dim)", fontWeight: 600, textTransform: "uppercase" }}>min</div>
           </div>
           <div style={{ textAlign: "center" }}>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "1rem", fontWeight: 700, color: streak > 0 ? "var(--done)" : "var(--fg-dim)" }}>{streak}</div>
+            <div style={{ fontFamily: "'JetBrains Mono', 'SF Mono', monospace", fontSize: "1rem", fontWeight: 700, color: streak > 0 ? "var(--done)" : "var(--fg-dim)" }}>{streak}</div>
             <div style={{ fontSize: "0.5rem", color: "var(--fg-dim)", fontWeight: 600, textTransform: "uppercase" }}>Streak</div>
           </div>
         </div>
@@ -874,7 +874,7 @@ export default function HealthTracker({ theme, settings, onSettingsChange }) {
 
   return (
     <div style={{ ...pageStyle(theme), maxWidth: isDesktop ? 800 : 480 }}>
-      <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Playfair+Display:wght@700&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet" />
+      <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
 
       {/* Mobile: Tabs */}
       {!isDesktop && (
@@ -903,11 +903,11 @@ export default function HealthTracker({ theme, settings, onSettingsChange }) {
           <div>{renderTimerPanel()}</div>
           <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
             <div>
-              <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "0.9rem", fontWeight: 700, margin: "0 0 0.5rem" }}>Tageslog</h3>
+              <h3 style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: "0.9rem", fontWeight: 700, margin: "0 0 0.5rem" }}>Tageslog</h3>
               {renderLogPanel()}
             </div>
             <div>
-              <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "0.9rem", fontWeight: 700, margin: "0 0 0.5rem" }}>Todos</h3>
+              <h3 style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: "0.9rem", fontWeight: 700, margin: "0 0 0.5rem" }}>Todos</h3>
               {renderTodosPanel()}
             </div>
           </div>

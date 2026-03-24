@@ -12,7 +12,7 @@ const fmtTime = (ts) => { try { return new Date(ts + "Z").toLocaleTimeString("de
 function StatCard({ value, label, sub, color = "var(--fg)" }) {
   return (
     <div style={{ flex: 1, minWidth: 0, textAlign: "center" }}>
-      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "1.5rem", fontWeight: 700, color, lineHeight: 1.1 }}>{value}</div>
+      <div style={{ fontFamily: "'JetBrains Mono', 'SF Mono', monospace", fontSize: "1.5rem", fontWeight: 700, color, lineHeight: 1.1 }}>{value}</div>
       <div style={{ fontSize: "0.6rem", color: "var(--fg-dim)", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600, marginTop: "0.15rem" }}>{label}</div>
       {sub && <div style={{ fontSize: "0.55rem", color: "var(--fg-dim)", marginTop: "0.1rem" }}>{sub}</div>}
     </div>
@@ -31,7 +31,7 @@ function EnergyBar({ value, max = 2 }) {
           width: `${pct}%`, marginLeft: value < 0 ? "auto" : 0,
         }} />
       </div>
-      <span style={{ fontSize: "0.6rem", fontFamily: "'JetBrains Mono', monospace", color, fontWeight: 600, minWidth: "1.5rem", textAlign: "right" }}>
+      <span style={{ fontSize: "0.6rem", fontFamily: "'JetBrains Mono', 'SF Mono', monospace", color, fontWeight: 600, minWidth: "1.5rem", textAlign: "right" }}>
         {value > 0 ? "+" : ""}{value}
       </span>
     </div>
@@ -86,7 +86,7 @@ function Tageslog({ dayData }) {
                 {/* Time label */}
                 <div style={{
                   position: "absolute", left: "-3.2rem", top: "0.3rem", width: "2.4rem",
-                  fontSize: "0.58rem", fontFamily: "'JetBrains Mono', monospace", color: "var(--fg-dim)", textAlign: "right",
+                  fontSize: "0.58rem", fontFamily: "'JetBrains Mono', 'SF Mono', monospace", color: "var(--fg-dim)", textAlign: "right",
                 }}>
                   {fmtTime(ev._time)}
                 </div>
@@ -138,7 +138,7 @@ function Tageslog({ dayData }) {
             <div key={`m-${i}`} style={{ position: "relative", marginBottom: "0.4rem" }}>
               <div style={{
                 position: "absolute", left: "-3.2rem", top: "0.15rem", width: "2.4rem",
-                fontSize: "0.55rem", fontFamily: "'JetBrains Mono', monospace", color: "var(--fg-dim)", textAlign: "right",
+                fontSize: "0.55rem", fontFamily: "'JetBrains Mono', 'SF Mono', monospace", color: "var(--fg-dim)", textAlign: "right",
               }}>
                 {fmtTime(ev._time)}
               </div>
@@ -206,7 +206,7 @@ function ProjektView({ dayData }) {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 700, fontSize: "0.82rem" }}>{proj.name}</div>
                   <div style={{ display: "flex", gap: "0.8rem", fontSize: "0.62rem", color: "var(--fg-dim)", marginTop: "0.1rem" }}>
-                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{proj.poms.length}× 25min</span>
+                    <span style={{ fontFamily: "'JetBrains Mono', 'SF Mono', monospace", fontWeight: 600 }}>{proj.poms.length}× 25min</span>
                     <span>Wert {BIZ_MAP[Math.round(avgBiz)] || "–"}</span>
                     <span>{proj.energySum > 0 ? "+" : ""}{proj.energySum} Energie</span>
                   </div>
@@ -231,7 +231,7 @@ function ProjektView({ dayData }) {
                     background: pi % 2 === 0 ? "var(--card-bg)" : "transparent",
                     display: "flex", alignItems: "flex-start", gap: "0.4rem",
                   }}>
-                    <span style={{ fontSize: "0.55rem", fontFamily: "'JetBrains Mono', monospace", color: "var(--fg-dim)", minWidth: "2.5rem", paddingTop: "0.1rem" }}>
+                    <span style={{ fontSize: "0.55rem", fontFamily: "'JetBrains Mono', 'SF Mono', monospace", color: "var(--fg-dim)", minWidth: "2.5rem", paddingTop: "0.1rem" }}>
                       {fmtTime(p.completed_at || p.started_at)}
                     </span>
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -359,8 +359,8 @@ function Wochenüberblick({ weekData }) {
               background: isT ? "var(--muted)" : "transparent", borderRadius: 6,
             }}>
               <span style={{ fontSize: "0.65rem", fontWeight: isT ? 700 : 400, color: isT ? "var(--fg)" : "var(--fg-dim)", minWidth: "5rem" }}>{dayName}</span>
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "0.65rem", fontWeight: 600, color: d.pom_count > 0 ? "var(--accent)" : "var(--fg-dim)", minWidth: "2rem" }}>{d.pom_count}p</span>
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "0.65rem", color: "var(--fg-dim)", minWidth: "3rem" }}>{d.effective_xp || 0} xp</span>
+              <span style={{ fontFamily: "'JetBrains Mono', 'SF Mono', monospace", fontSize: "0.65rem", fontWeight: 600, color: d.pom_count > 0 ? "var(--accent)" : "var(--fg-dim)", minWidth: "2rem" }}>{d.pom_count}p</span>
+              <span style={{ fontFamily: "'JetBrains Mono', 'SF Mono', monospace", fontSize: "0.65rem", color: "var(--fg-dim)", minWidth: "3rem" }}>{d.effective_xp || 0} xp</span>
               <div style={{ flex: 1 }}>
                 <EnergyBar value={d.pom_count > 0 ? Math.round(avgE) : 0} />
               </div>
@@ -400,7 +400,7 @@ function AuditKalender() {
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.8rem" }}>
         <button onClick={prevMonth} className="btn-interactive" style={{ background: "var(--muted)", border: "none", borderRadius: 6, padding: "0.3rem 0.6rem", fontSize: "0.78rem", cursor: "pointer", fontFamily: "inherit", color: "var(--fg)" }}>←</button>
-        <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontWeight: 700, fontSize: "1rem" }}>{monthLabel}</span>
+        <span style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontWeight: 700, fontSize: "1rem" }}>{monthLabel}</span>
         <button onClick={nextMonth} className="btn-interactive" style={{ background: "var(--muted)", border: "none", borderRadius: 6, padding: "0.3rem 0.6rem", fontSize: "0.78rem", cursor: "pointer", fontFamily: "inherit", color: "var(--fg)" }}>→</button>
       </div>
 
@@ -429,7 +429,7 @@ function AuditKalender() {
             }}>
               <span>{day}</span>
               {poms > 0 && (
-                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "0.45rem", color: poms >= 8 ? "var(--accent)" : "var(--fg-dim)", fontWeight: 600 }}>
+                <span style={{ fontFamily: "'JetBrains Mono', 'SF Mono', monospace", fontSize: "0.45rem", color: poms >= 8 ? "var(--accent)" : "var(--fg-dim)", fontWeight: 600 }}>
                   {poms}
                 </span>
               )}
@@ -488,11 +488,11 @@ export default function Dashboard({ theme }) {
 
   return (
     <div style={pageStyle(theme)}>
-      <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Playfair+Display:wght@700&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet" />
+      <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Cormorant+Garamond:wght@600;700&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet" />
 
       {/* Header */}
       <div style={{ marginBottom: "1rem" }}>
-        <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "1.3rem", fontWeight: 700, margin: 0 }}>📊 Dashboard</h2>
+        <h2 style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: "1.3rem", fontWeight: 700, margin: 0 }}>📊 Dashboard</h2>
       </div>
 
       {/* Tabs */}

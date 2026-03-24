@@ -111,7 +111,7 @@ export default function CategorySettings({ theme }) {
   return (
     <div style={pageStyle(theme)}>
       <div style={{ marginBottom: "1rem" }}>
-        <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "1.3rem", fontWeight: 700, margin: 0 }}>🏷️ Wert-Kategorien</h2>
+        <h2 style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: "1.3rem", fontWeight: 700, margin: 0 }}>🏷️ Wert-Kategorien</h2>
         <p style={{ fontSize: "0.72rem", color: "var(--fg-dim)", margin: "0.2rem 0 0" }}>
           Kategorien definieren, worauf deine Arbeit einzahlt
         </p>

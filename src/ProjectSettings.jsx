@@ -155,7 +155,7 @@ export default function ProjectSettings({ theme }) {
       <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet" />
 
       <div style={{ marginBottom: "1rem" }}>
-        <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "1.3rem", fontWeight: 700, margin: 0 }}>📁 Projekte</h2>
+        <h2 style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: "1.3rem", fontWeight: 700, margin: 0 }}>📁 Projekte</h2>
       </div>
 
       {loading ? (
