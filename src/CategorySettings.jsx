@@ -71,7 +71,7 @@ function CategoryCard({ cat, onSave, onToggle }) {
   );
 }
 
-export default function CategorySettings({ theme }) {
+export default function CategorySettings({ theme, embedded }) {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showNew, setShowNew] = useState(false);
@@ -108,10 +108,16 @@ export default function CategorySettings({ theme }) {
     }
   };
 
+  const Wrap = embedded ? ({ children }) => <div>{children}</div> : ({ children }) => <div style={pageStyle(theme)}>{children}</div>;
+
   return (
-    <div style={pageStyle(theme)}>
-      <div style={{ marginBottom: "1rem" }}>
-        <h2 style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: "1.3rem", fontWeight: 700, margin: 0 }}>🏷️ Wert-Kategorien</h2>
+    <Wrap>
+      {!embedded && (
+        <div style={{ marginBottom: "1rem" }}>
+          <h2 style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: "1.3rem", fontWeight: 700, margin: 0 }}>Wert-Kategorien</h2>
+        </div>
+      )}
+      <div style={{ marginBottom: "0.5rem" }}>
         <p style={{ fontSize: "0.72rem", color: "var(--fg-dim)", margin: "0.2rem 0 0" }}>
           Kategorien definieren, worauf deine Arbeit einzahlt
         </p>
@@ -157,6 +163,6 @@ export default function CategorySettings({ theme }) {
           )}
         </div>
       )}
-    </div>
+    </Wrap>
   );
 }

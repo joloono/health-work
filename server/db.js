@@ -277,6 +277,11 @@ function ratePomodoro(id, bizRating, energyRating) {
   return stmtRatePom.run(bizRating, energyRating, id);
 }
 
+const stmtDeletePom = db.prepare("DELETE FROM pomodoros WHERE id = ?");
+function deletePomodoro(id) {
+  return stmtDeletePom.run(id);
+}
+
 // Retro pomodoros (gap audit)
 const stmtCreateRetroPom = db.prepare(
   "INSERT INTO pomodoros (day_id, block_index, pom_index, intention, value_tags, project_id, biz_rating, energy_rating, retroactive, started_at, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)"
@@ -561,6 +566,7 @@ module.exports = {
   createPomodoro,
   completePomodoro,
   ratePomodoro,
+  deletePomodoro,
   createRetroPomodoro,
   getLastCompletedTime,
   getPomodorosByDay,

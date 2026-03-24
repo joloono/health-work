@@ -87,6 +87,25 @@ function syncTimerFromServer(serverTimer) {
   return data;
 }
 
+// --- Ripple Animation ---
+
+function RippleOverlay({ onDone }) {
+  useEffect(() => {
+    const t = setTimeout(onDone, 1600);
+    return () => clearTimeout(t);
+  }, [onDone]);
+  const size = Math.ceil(Math.hypot(window.innerWidth, window.innerHeight)) * 2;
+  const center = { position: "absolute", left: "50%", top: "50%", width: size, height: size, marginLeft: -size / 2, marginTop: -size / 2, borderRadius: "50%" };
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 200, pointerEvents: "none" }}>
+      <div style={{ ...center, background: "var(--accent)", animation: "rippleFill 1.5s ease-out forwards" }} />
+      {[0, 0.2, 0.4].map((delay, i) => (
+        <div key={i} style={{ ...center, border: `${3 - i}px solid var(--accent)`, background: "transparent", animation: `rippleRing 1.5s ease-out ${delay}s forwards`, opacity: 0 }} />
+      ))}
+    </div>
+  );
+}
+
 // --- Timer Component (reused, extended with duration prop) ---
 
 function PomodoroTimer({ duration = 1500, onComplete, soundEnabled = true, onTick, intention, timerKey, persist = {} }) {
@@ -123,6 +142,7 @@ function PomodoroTimer({ duration = 1500, onComplete, soundEnabled = true, onTic
   }, []);
   const ref = useRef(null);
   const soundPlayed = useRef(false);
+  const [showRipple, setShowRipple] = useState(!isResume); // auto-start ripple
 
   useEffect(() => {
     if (running && endTime) {
@@ -159,6 +179,7 @@ function PomodoroTimer({ duration = 1500, onComplete, soundEnabled = true, onTic
     const left = pauseRemaining || duration;
     const et = Date.now() + left * 1000;
     setEndTime(et); setRunning(true); setPauseRemaining(0);
+    setShowRipple(true);
     saveTimer({ key: timerKey, endTime: et, paused: false, pauseRemaining: 0, intention, ...persist });
   };
 
@@ -175,6 +196,7 @@ function PomodoroTimer({ duration = 1500, onComplete, soundEnabled = true, onTic
 
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.6rem", padding: "0.3rem 0 0.8rem" }}>
+      {showRipple && <RippleOverlay onDone={() => setShowRipple(false)} />}
       {intention && (
         <div style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: "1.05rem", fontWeight: 700, textAlign: "center", lineHeight: 1.3, maxWidth: 280, padding: "0 0.5rem" }}>
           {intention}
@@ -345,7 +367,7 @@ function MovementPicker({ dayId, onComplete }) {
 
 // --- Tageslog (inline timeline) ---
 
-function DayLog({ entries, movements }) {
+function DayLog({ entries, movements, expanded, onToggleExpand, onDeleteEntry }) {
   const completed = entries.filter((e) => e.completed_at);
   const fmtTime = (ts) => { try { return new Date(ts + "Z").toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit" }); } catch { return ""; } };
 
@@ -428,12 +450,14 @@ function DayLog({ entries, movements }) {
       </div>
 
       {/* Timeline — show 4, fade, expand */}
-      <TimelineList events={events} fmtTime={fmtTime} />
+      <TimelineList events={events} fmtTime={fmtTime} expanded={expanded} onToggle={onToggleExpand} onDeleteEntry={onDeleteEntry} />
     </div>
   );
 }
 
-function TimelineEvent({ ev, fmtTime }) {
+function TimelineEvent({ ev, fmtTime, onDelete }) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const isLog = ev._type === "entry" && !TIMER_TYPES.has(ev.entry_type || "pomodoro");
   if (ev._type === "entry") {
     const typeIcon = TYPE_ICON[ev.entry_type] || "🎯";
     return (
@@ -449,6 +473,24 @@ function TimelineEvent({ ev, fmtTime }) {
             {ev.project_name && (
               <span style={{ fontSize: "0.5rem", background: `${ev.project_color || "var(--accent)"}20`, color: ev.project_color || "var(--accent)", borderRadius: 3, padding: "0.05rem 0.3rem", fontWeight: 700 }}>
                 {ev.project_name}
+              </span>
+            )}
+            {isLog && onDelete && !confirmDelete && (
+              <button onClick={() => setConfirmDelete(true)} style={{
+                marginLeft: "auto", background: "transparent", border: "none", color: "var(--fg-dim)",
+                cursor: "pointer", fontSize: "0.6rem", padding: "0.1rem 0.2rem", opacity: 0.4,
+              }}>×</button>
+            )}
+            {isLog && confirmDelete && (
+              <span style={{ marginLeft: "auto", display: "flex", gap: "0.25rem", alignItems: "center" }}>
+                <button onClick={() => onDelete(ev.id)} style={{
+                  background: "var(--accent)", color: "#fff", border: "none", borderRadius: 3,
+                  fontSize: "0.5rem", padding: "0.15rem 0.35rem", cursor: "pointer", fontFamily: "inherit", fontWeight: 600,
+                }}>Löschen</button>
+                <button onClick={() => setConfirmDelete(false)} style={{
+                  background: "transparent", border: "none", color: "var(--fg-dim)",
+                  fontSize: "0.5rem", cursor: "pointer", fontFamily: "inherit",
+                }}>Abbrechen</button>
               </span>
             )}
           </div>
@@ -479,20 +521,19 @@ function TimelineEvent({ ev, fmtTime }) {
 
 const PREVIEW_COUNT = 4;
 
-function TimelineList({ events, fmtTime }) {
-  const [expanded, setExpanded] = useState(false);
+function TimelineList({ events, fmtTime, expanded = false, onToggle, onDeleteEntry }) {
   const hasMore = events.length > PREVIEW_COUNT;
   const visible = expanded ? events : events.slice(0, PREVIEW_COUNT);
 
   return (
     <div style={{ position: "relative", paddingLeft: "3rem" }}>
       <div style={{ position: "absolute", left: "2.4rem", top: 0, bottom: 0, width: 2, background: "var(--border)", borderRadius: 1 }} />
-      {visible.map((ev, i) => <TimelineEvent key={`${ev._type}-${i}`} ev={ev} fmtTime={fmtTime} />)}
+      {visible.map((ev) => <TimelineEvent key={`${ev._type}-${ev.id || ev._time}`} ev={ev} fmtTime={fmtTime} onDelete={onDeleteEntry} />)}
       {hasMore && !expanded && (
         <div style={{ position: "relative" }}>
           <div style={{ position: "absolute", top: "-2.5rem", left: "-3rem", right: 0, height: "2.5rem",
             background: "linear-gradient(to bottom, transparent, var(--bg))", pointerEvents: "none" }} />
-          <button onClick={() => setExpanded(true)} style={{
+          <button onClick={() => onToggle && onToggle(true)} style={{
             width: "100%", padding: "0.4rem", background: "transparent", border: "1px solid var(--border)",
             borderRadius: 6, fontSize: "0.65rem", color: "var(--fg-dim)", cursor: "pointer", fontFamily: "inherit",
           }}>
@@ -501,7 +542,7 @@ function TimelineList({ events, fmtTime }) {
         </div>
       )}
       {hasMore && expanded && (
-        <button onClick={() => setExpanded(false)} style={{
+        <button onClick={() => onToggle && onToggle(false)} style={{
           width: "100%", padding: "0.3rem", background: "transparent", border: "none",
           fontSize: "0.6rem", color: "var(--fg-dim)", cursor: "pointer", fontFamily: "inherit",
         }}>
@@ -514,7 +555,7 @@ function TimelineList({ events, fmtTime }) {
 
 // --- Todo List ---
 
-function TodoList({ todos, dayId, openYesterday, onUpdate }) {
+function TodoList({ todos, dayId, openYesterday, onUpdate, expanded, onToggleExpand }) {
   const [newText, setNewText] = useState("");
   const [carriedIds, setCarriedIds] = useState(new Set());
 
@@ -592,7 +633,7 @@ function TodoList({ todos, dayId, openYesterday, onUpdate }) {
       {todos.length === 0 && (
         <div style={{ padding: "1.5rem", textAlign: "center", color: "var(--fg-dim)", fontSize: "0.78rem", fontStyle: "italic" }}>Keine Aufgaben.</div>
       )}
-      <TodoItemList todos={todos} onToggle={handleToggle} onDelete={handleDelete} />
+      <TodoItemList todos={todos} onToggle={handleToggle} onDelete={handleDelete} expanded={expanded} onExpand={onToggleExpand} />
     </div>
   );
 }
@@ -622,8 +663,7 @@ function TodoItem({ t, onToggle, onDelete }) {
   );
 }
 
-function TodoItemList({ todos, onToggle, onDelete }) {
-  const [expanded, setExpanded] = useState(false);
+function TodoItemList({ todos, onToggle, onDelete, expanded = false, onExpand }) {
   if (todos.length === 0) return null;
   const hasMore = todos.length > PREVIEW_COUNT;
   const visible = expanded ? todos : todos.slice(0, PREVIEW_COUNT);
@@ -635,7 +675,7 @@ function TodoItemList({ todos, onToggle, onDelete }) {
         <div style={{ position: "relative" }}>
           <div style={{ position: "absolute", top: "-2rem", left: 0, right: 0, height: "2rem",
             background: "linear-gradient(to bottom, transparent, var(--bg))", pointerEvents: "none" }} />
-          <button onClick={() => setExpanded(true)} style={{
+          <button onClick={() => onExpand && onExpand(true)} style={{
             width: "100%", padding: "0.4rem", background: "transparent", border: "1px solid var(--border)",
             borderRadius: 6, fontSize: "0.65rem", color: "var(--fg-dim)", cursor: "pointer", fontFamily: "inherit", marginTop: "0.3rem",
           }}>
@@ -644,7 +684,7 @@ function TodoItemList({ todos, onToggle, onDelete }) {
         </div>
       )}
       {hasMore && expanded && (
-        <button onClick={() => setExpanded(false)} style={{
+        <button onClick={() => onExpand && onExpand(false)} style={{
           width: "100%", padding: "0.3rem", background: "transparent", border: "none",
           fontSize: "0.6rem", color: "var(--fg-dim)", cursor: "pointer", fontFamily: "inherit",
         }}>
@@ -708,6 +748,9 @@ export default function HealthTracker({ theme, settings, onSettingsChange }) {
 
   // Mobile tab
   const [mobileTab, setMobileTab] = useState("timer");
+  // Persistent expand states (survive re-renders from loadData)
+  const [logExpanded, setLogExpanded] = useState(false);
+  const [todosExpanded, setTodosExpanded] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
@@ -1201,12 +1244,17 @@ export default function HealthTracker({ theme, settings, onSettingsChange }) {
     </div>
   );
 
+  const handleDeleteEntry = async (id) => {
+    await api.deleteEntry(id);
+    await loadData();
+  };
+
   const renderLogPanel = () => (
-    <DayLog entries={entries} movements={movements} />
+    <DayLog entries={entries} movements={movements} expanded={logExpanded} onToggleExpand={setLogExpanded} onDeleteEntry={handleDeleteEntry} />
   );
 
   const renderTodosPanel = () => (
-    <TodoList todos={dayData.todos || []} dayId={dayData.day.id} openYesterday={dayData.openTodosYesterday || []} onUpdate={loadData} />
+    <TodoList todos={dayData.todos || []} dayId={dayData.day.id} openYesterday={dayData.openTodosYesterday || []} onUpdate={loadData} expanded={todosExpanded} onToggleExpand={setTodosExpanded} />
   );
 
   const tabs = [

@@ -6,6 +6,58 @@ import { btnStyle, pageStyle, CATEGORY_COLORS } from "./constants.js";
 
 const ENERGY_MAP = { "-2": { icon: "🔴🔴", label: "drain" }, "-1": { icon: "🔴", label: "müde" }, "0": { icon: "⚪", label: "neutral" }, "1": { icon: "🟢", label: "gut" }, "2": { icon: "🟢🟢", label: "Feuer" } };
 const BIZ_MAP = { 1: "◐", 2: "●", 3: "●●", 4: "●●●" };
+const TYPE_LABEL = { pomodoro: "Fokus", meeting: "Meeting", walk: "Spaziergang", recreation: "Pause", eating: "Essen", note: "Notiz" };
+
+function downloadDayMd(dayData) {
+  if (!dayData) return;
+  const { day, pomodoros = [], movements = [], todos = [] } = dayData;
+  const date = day.date;
+  const completed = pomodoros.filter((p) => p.completed_at);
+  const totalMin = completed.reduce((s, p) => s + (p.duration_minutes || 25), 0);
+
+  let md = `# Tagesbericht ${date}\n\n`;
+  md += `**Einträge:** ${completed.length} | **Minuten:** ${totalMin} | **Bewegungen:** ${movements.length}\n\n`;
+
+  if (completed.length) {
+    md += `## Aktivitäten\n\n`;
+    md += `| Zeit | Typ | Dauer | Projekt | Intention | Wert | Energie |\n`;
+    md += `|------|-----|-------|---------|-----------|------|--------|\n`;
+    for (const p of [...completed].sort((a, b) => (a.completed_at || "").localeCompare(b.completed_at || ""))) {
+      const time = fmtTime(p.completed_at || p.started_at);
+      const type = TYPE_LABEL[p.entry_type] || "Fokus";
+      const dur = `${p.duration_minutes || 25}min`;
+      const proj = p.project_name || "–";
+      const biz = p.biz_rating != null ? BIZ_MAP[p.biz_rating] || String(p.biz_rating) : "–";
+      const energy = p.energy_rating != null ? (ENERGY_MAP[String(p.energy_rating)]?.label || String(p.energy_rating)) : "–";
+      md += `| ${time} | ${type} | ${dur} | ${proj} | ${p.intention} | ${biz} | ${energy} |\n`;
+    }
+    md += `\n`;
+  }
+
+  if (movements.length) {
+    md += `## Bewegungen\n\n`;
+    for (const m of movements) {
+      md += `- ${fmtTime(m.completed_at)} ${(m.exercise || "").split(",").join(" + ")}\n`;
+    }
+    md += `\n`;
+  }
+
+  const doneTodos = todos.filter((t) => t.done);
+  const openTodos = todos.filter((t) => !t.done);
+  if (todos.length) {
+    md += `## Todos\n\n`;
+    for (const t of doneTodos) md += `- [x] ${t.text}\n`;
+    for (const t of openTodos) md += `- [ ] ${t.text}\n`;
+    md += `\n`;
+  }
+
+  const blob = new Blob([md], { type: "text/markdown" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `tagesbericht-${date}.md`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
 const fmt = (n) => typeof n === "number" ? n.toLocaleString("de-CH") : "–";
 const fmtTime = (ts) => { try { return new Date(ts + "Z").toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit" }); } catch { return ""; } };
 
@@ -522,7 +574,20 @@ export default function Dashboard({ theme }) {
         <div style={{ padding: "2rem", textAlign: "center", color: "var(--fg-dim)" }}>Laden...</div>
       ) : (
         <>
-          {tab === "tageslog" && <Tageslog dayData={dayData} />}
+          {tab === "tageslog" && (
+            <>
+              <Tageslog dayData={dayData} />
+              <div style={{ marginTop: "1rem", textAlign: "center" }}>
+                <button onClick={() => downloadDayMd(dayData)} className="btn-interactive" style={{
+                  background: "transparent", border: "1px solid var(--border)", borderRadius: 6,
+                  padding: "0.4rem 0.8rem", fontSize: "0.65rem", color: "var(--fg-dim)",
+                  cursor: "pointer", fontFamily: "inherit",
+                }}>
+                  Als Markdown herunterladen
+                </button>
+              </div>
+            </>
+          )}
           {tab === "projekte" && <ProjektView dayData={dayData} />}
           {tab === "woche" && <Wochenüberblick weekData={weekData} />}
           {tab === "kalender" && <AuditKalender />}

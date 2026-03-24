@@ -116,6 +116,11 @@ app.patch("/api/pomodoros/:id/rate", (req, res) => {
   res.json({ ok: true });
 });
 
+app.delete("/api/pomodoros/:id", (req, res) => {
+  db.deletePomodoro(req.params.id);
+  res.json({ ok: true });
+});
+
 // Retro pomodoros (gap audit) — batch insert
 app.post("/api/pomodoros/retro", (req, res) => {
   const { entries } = req.body; // [{day_id, intention, project_id, biz_rating, energy_rating, started_at, completed_at, value_tags}]

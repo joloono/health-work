@@ -88,9 +88,8 @@ function TimerBanner({ timerInfo, onClick }) {
 
 const NAV_ITEMS = [
   { id: "timer", label: "Timer" },
-  { id: "dashboard", label: "📊 Dashboard" },
-  { id: "projects", label: "📁 Projekte" },
-  { id: "categories", label: "🏷️ Kategorien" },
+  { id: "dashboard", label: "Dashboard" },
+  { id: "settings", label: "Settings" },
 ];
 
 function TopNav({ view, setView, settings, onSettingsChange }) {
@@ -136,6 +135,32 @@ function TopNav({ view, setView, settings, onSettingsChange }) {
   );
 }
 
+function SettingsView({ theme }) {
+  const [tab, setTab] = useState("projects");
+  const tabs = [
+    { id: "projects", label: "Projekte" },
+    { id: "categories", label: "Kategorien" },
+  ];
+  return (
+    <div style={{ ...theme, fontFamily: "'IBM Plex Sans', -apple-system, sans-serif", maxWidth: 480, margin: "0 auto", padding: "1.2rem 1rem 2rem", color: "var(--fg)", minHeight: "100vh", background: "var(--bg)" }}>
+      <div style={{ display: "flex", gap: "0.2rem", marginBottom: "1rem", background: "var(--muted)", borderRadius: 8, padding: "0.2rem" }}>
+        {tabs.map((t) => (
+          <button key={t.id} onClick={() => setTab(t.id)} className="btn-interactive" style={{
+            flex: 1, padding: "0.4rem 0.2rem", borderRadius: 6, fontSize: "0.68rem", fontWeight: 600,
+            fontFamily: "inherit", cursor: "pointer", border: "none",
+            background: tab === t.id ? "var(--card-bg)" : "transparent",
+            color: tab === t.id ? "var(--accent)" : "var(--fg-dim)",
+          }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {tab === "projects" && <ProjectSettings theme={theme} embedded />}
+      {tab === "categories" && <CategorySettings theme={theme} embedded />}
+    </div>
+  );
+}
+
 export default function App() {
   const [view, setView] = useState("timer");
   const [settings, updateSettings] = useSettings();
@@ -153,6 +178,8 @@ export default function App() {
       <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
       <style>{`
         @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes rippleFill { 0% { transform: scale(0); opacity: 0.2; } 60% { opacity: 0.12; } 100% { transform: scale(1); opacity: 0; } }
+        @keyframes rippleRing { 0% { transform: scale(0); opacity: 0.35; } 100% { transform: scale(1); opacity: 0; } }
         .fade-in { animation: fadeIn 0.3s ease-out both; }
         .btn-interactive { transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1); }
         .btn-interactive:hover { filter: brightness(1.08); transform: translateY(-1px); }
@@ -181,11 +208,8 @@ export default function App() {
       {view === "dashboard" && (
         <Dashboard theme={theme} />
       )}
-      {view === "projects" && (
-        <ProjectSettings theme={theme} />
-      )}
-      {view === "categories" && (
-        <CategorySettings theme={theme} />
+      {view === "settings" && (
+        <SettingsView theme={theme} />
       )}
     </div>
   );

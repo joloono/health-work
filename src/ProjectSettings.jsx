@@ -106,7 +106,7 @@ function ProjectCard({ project, onSave, onToggleActive }) {
   );
 }
 
-export default function ProjectSettings({ theme }) {
+export default function ProjectSettings({ theme, embedded }) {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showNew, setShowNew] = useState(false);
@@ -150,13 +150,20 @@ export default function ProjectSettings({ theme }) {
     }
   };
 
-  return (
+  const Wrap = embedded ? ({ children }) => <div>{children}</div> : ({ children }) => (
     <div style={pageStyle(theme)}>
-      <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet" />
+      <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Cormorant+Garamond:wght@600;700&display=swap" rel="stylesheet" />
+      {children}
+    </div>
+  );
 
-      <div style={{ marginBottom: "1rem" }}>
-        <h2 style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: "1.3rem", fontWeight: 700, margin: 0 }}>📁 Projekte</h2>
-      </div>
+  return (
+    <Wrap>
+      {!embedded && (
+        <div style={{ marginBottom: "1rem" }}>
+          <h2 style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: "1.3rem", fontWeight: 700, margin: 0 }}>Projekte</h2>
+        </div>
+      )}
 
       {loading ? (
         <div style={{ padding: "2rem", textAlign: "center", color: "var(--fg-dim)" }}>Laden...</div>
@@ -189,6 +196,6 @@ export default function ProjectSettings({ theme }) {
           )}
         </div>
       )}
-    </div>
+    </Wrap>
   );
 }

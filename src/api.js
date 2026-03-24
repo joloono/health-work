@@ -66,6 +66,9 @@ export const api = {
   completePomodoro: (id) =>
     request(`/api/pomodoros/${id}/complete`, { method: "PATCH" }),
 
+  deleteEntry: (id) =>
+    request(`/api/pomodoros/${id}`, { method: "DELETE" }),
+
   ratePomodoro: (id, bizRating, energyRating) =>
     request(`/api/pomodoros/${id}/rate`, {
       method: "PATCH",
