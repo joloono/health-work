@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { api } from "./api.js";
 import { getRank, calcDayXPFlex, calcEffectiveXP, getStreakMultiplier, getLevelProgress, xpForLevel } from "./gamification.js";
-import { playNotificationSound } from "./useSettings.js";
+import { playNotificationSound, playReturnSound } from "./useSettings.js";
 import { VALUE_TAGS, CATEGORY_COLORS, btnStyle, chipStyle, inputStyle, pageStyle, labelStyle } from "./constants.js";
 
 // --- Constants ---
@@ -52,15 +52,39 @@ const BIZ_MAP = { 1: "◐", 2: "●", 3: "●●", 4: "●●●" };
 const ENERGY_MAP = { "-2": "🔴🔴", "-1": "🔴", "0": "⚪", "1": "🟢", "2": "🟢🟢" };
 const TYPE_ICON = { pomodoro: "🎯", meeting: "👥", walk: "🚶", recreation: "☕", eating: "🍽️", note: "📝" };
 
-// --- Timer persistence ---
+// --- Timer persistence (localStorage + server) ---
 
 const TIMER_KEY = "health-active-timer";
 function saveTimer(data) {
-  if (data) localStorage.setItem(TIMER_KEY, JSON.stringify(data));
-  else localStorage.removeItem(TIMER_KEY);
+  if (data) {
+    localStorage.setItem(TIMER_KEY, JSON.stringify(data));
+    api.setTimer({
+      entry_id: data.entryId || null, intention: data.intention || "",
+      duration_seconds: (data.duration || 25) * 60, end_time: data.endTime || null,
+      pause_remaining: data.pauseRemaining || 0, paused: data.paused ? 1 : 0,
+      entry_type: data.entryType || "pomodoro",
+    }).catch(() => {});
+  } else {
+    localStorage.removeItem(TIMER_KEY);
+    api.clearTimer().catch(() => {});
+  }
 }
 function loadTimer() {
   try { return JSON.parse(localStorage.getItem(TIMER_KEY)); } catch { return null; }
+}
+// Sync from server timer to localStorage (on load)
+function syncTimerFromServer(serverTimer) {
+  if (!serverTimer) { localStorage.removeItem(TIMER_KEY); return null; }
+  const data = {
+    key: `entry-${serverTimer.entry_id}`,
+    endTime: serverTimer.end_time, paused: !!serverTimer.paused,
+    pauseRemaining: serverTimer.pause_remaining || 0,
+    intention: serverTimer.intention, entryId: serverTimer.entry_id,
+    entryType: serverTimer.entry_type || "pomodoro",
+    duration: Math.round(serverTimer.duration_seconds / 60),
+  };
+  localStorage.setItem(TIMER_KEY, JSON.stringify(data));
+  return data;
 }
 
 // --- Timer Component (reused, extended with duration prop) ---
@@ -698,6 +722,16 @@ export default function HealthTracker({ theme, settings, onSettingsChange }) {
       });
       setProjects(projs || []);
       setCategories(cats || []);
+      // Sync server timer to localStorage and restore phase
+      const st = data.activeTimer;
+      if (st && (st.end_time || st.paused)) {
+        const synced = syncTimerFromServer(st);
+        if (synced) {
+          setCurrentEntryId(st.entry_id);
+          setEntryConfig((c) => ({ ...c, intention: st.intention || "", entryType: st.entry_type || "pomodoro", duration: Math.round(st.duration_seconds / 60) }));
+          setPhase("timer");
+        }
+      }
     } catch (e) { console.error("Failed to load:", e); }
     setLoading(false);
   }, []);
@@ -784,12 +818,14 @@ export default function HealthTracker({ theme, settings, onSettingsChange }) {
   };
 
   const handleMovementComplete = async () => {
+    if (settings?.soundEnabled) playReturnSound();
     await loadData();
     setPhase("idle");
     resetConfig();
   };
 
   const handleSkipMovement = async () => {
+    if (settings?.soundEnabled) playReturnSound();
     await loadData();
     setPhase("idle");
     resetConfig();

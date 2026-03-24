@@ -105,6 +105,12 @@ export const api = {
 
   getRecentDays: (count = 7) => request(`/api/days/recent?count=${count}`),
 
+  // Timer (server-persisted)
+  setTimer: (data) =>
+    request("/api/timer", { method: "PUT", body: JSON.stringify(data) }),
+  clearTimer: () =>
+    request("/api/timer", { method: "DELETE" }),
+
   // Todos
   createTodo: (dayId, text, sortOrder, carriedFromId) =>
     request("/api/todos", { method: "POST", body: JSON.stringify({ day_id: dayId, text, sort_order: sortOrder, carried_from_id: carriedFromId }) }),

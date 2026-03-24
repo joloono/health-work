@@ -53,7 +53,8 @@ app.get("/api/today", (req, res) => {
   const streakLength = db.calcStreakLength(today);
   const todos = db.getTodosByDay(day.id);
   const openTodosYesterday = db.getOpenTodosFromYesterday(today);
-  res.json({ day, pomodoros, movements, gamification, lastCompleted, streakLength, todos, openTodosYesterday });
+  const activeTimer = db.getActiveTimer();
+  res.json({ day, pomodoros, movements, gamification, lastCompleted, streakLength, todos, openTodosYesterday, activeTimer });
 });
 
 // --- Categories ---
@@ -193,6 +194,19 @@ app.patch("/api/todos/:id/toggle", (req, res) => {
 
 app.delete("/api/todos/:id", (req, res) => {
   db.deleteTodo(req.params.id);
+  res.json({ ok: true });
+});
+
+// --- Active Timer ---
+
+app.put("/api/timer", (req, res) => {
+  const { entry_id, intention, duration_seconds, end_time, pause_remaining, paused, entry_type } = req.body;
+  db.setActiveTimer(entry_id, intention, duration_seconds, end_time, pause_remaining, paused, entry_type);
+  res.json({ ok: true });
+});
+
+app.delete("/api/timer", (req, res) => {
+  db.clearActiveTimer();
   res.json({ ok: true });
 });
 

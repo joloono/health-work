@@ -73,6 +73,17 @@ db.exec(`
     sort_order INTEGER DEFAULT 0
   );
 
+  CREATE TABLE IF NOT EXISTS active_timer (
+    id INTEGER PRIMARY KEY CHECK(id = 1),
+    entry_id INTEGER REFERENCES pomodoros(id),
+    intention TEXT DEFAULT '',
+    duration_seconds INTEGER DEFAULT 1500,
+    end_time INTEGER,
+    pause_remaining INTEGER DEFAULT 0,
+    paused INTEGER DEFAULT 0,
+    entry_type TEXT DEFAULT 'pomodoro'
+  );
+
   CREATE TABLE IF NOT EXISTS gamification (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     date TEXT UNIQUE NOT NULL,
@@ -412,6 +423,31 @@ function getCalendar(startDate, endDate) {
   return stmtCalendar.all(startDate, endDate);
 }
 
+// --- Active timer operations ---
+
+const stmtGetTimer = db.prepare("SELECT * FROM active_timer WHERE id = 1");
+const stmtUpsertTimer = db.prepare(`
+  INSERT INTO active_timer (id, entry_id, intention, duration_seconds, end_time, pause_remaining, paused, entry_type)
+  VALUES (1, ?, ?, ?, ?, ?, ?, ?)
+  ON CONFLICT(id) DO UPDATE SET
+    entry_id = excluded.entry_id, intention = excluded.intention, duration_seconds = excluded.duration_seconds,
+    end_time = excluded.end_time, pause_remaining = excluded.pause_remaining, paused = excluded.paused,
+    entry_type = excluded.entry_type
+`);
+const stmtClearTimer = db.prepare("DELETE FROM active_timer WHERE id = 1");
+
+function getActiveTimer() {
+  return stmtGetTimer.get() || null;
+}
+
+function setActiveTimer(entryId, intention, durationSeconds, endTime, pauseRemaining, paused, entryType) {
+  return stmtUpsertTimer.run(entryId, intention, durationSeconds, endTime, pauseRemaining || 0, paused ? 1 : 0, entryType || "pomodoro");
+}
+
+function clearActiveTimer() {
+  return stmtClearTimer.run();
+}
+
 // --- Category operations ---
 
 const stmtGetCategories = db.prepare("SELECT * FROM categories WHERE active = 1 ORDER BY sort_order, label");
@@ -535,6 +571,9 @@ module.exports = {
   deleteTodo,
   getTodosByDay,
   getOpenTodosFromYesterday,
+  getActiveTimer,
+  setActiveTimer,
+  clearActiveTimer,
   getGamification,
   upsertGamification,
   getGamificationHistory,
