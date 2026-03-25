@@ -87,51 +87,144 @@ function syncTimerFromServer(serverTimer) {
   return data;
 }
 
-// --- Ripple Animation ---
+// --- WebGL Shader Overlay ---
 
-function RippleOverlay({ onDone }) {
+const SHADER_VERTEX = `attribute vec2 a;void main(){gl_Position=vec4(a,0,1);}`;
+
+const SHADER_TIMER_START = `
+precision highp float;
+uniform float t;
+uniform vec2 r;
+void main(){
+  vec4 o=vec4(0);
+  vec2 FC=gl_FragCoord.xy;
+  for(float z=0.,d=0.,i=0.;i<90.;i++){
+    vec3 p=z*normalize(vec3(FC,0.5*r.y)*2.-vec3(r,r.x));
+    p=vec3(atan(p.y,p.x),p.z/8.-t,length(p.xy)-9.);
+    for(d=0.;d<7.;d++)p+=sin(p.yzx*d+t+i*.2)/d;
+    d=.2*length(vec4(.2*cos(6.*p)-.2,p.z));z+=d;
+    o+=(cos(p.x+vec4(0,.5,1,0))+1.)/d/z;
+  }
+  o=tanh(o*o/3e2);
+  gl_FragColor=o;
+}`;
+
+const SHADER_NIGHT = `
+precision highp float;
+uniform float t;
+uniform vec2 r;
+void main(){
+  vec4 o=vec4(0);
+  vec2 FC=gl_FragCoord.xy;
+  for(float i=0.,z=0.,d=0.,s=0.;i<70.;i++){
+    vec3 p=z*normalize(vec3(FC,0.5*r.y)*2.-vec3(r,r.x));
+    p.z+=9.;
+    vec3 a=vec3(.57);
+    a=mix(dot(a-=.57,p)*a,p,cos(s-=t))-sin(s)*cross(a,p);
+    s=sqrt(length(a.xz-a.y));
+    for(d=1.;d<9.;d++)a+=sin(a*d-t).yzx/d;
+    d=length(sin(a)+dot(a,a/a)*.2)*s/2e1;z+=d;
+    o+=vec4(z,2,s,1)/s/d;
+  }
+  o=tanh(o/2e3);
+  gl_FragColor=o;
+}`;
+
+function ShaderOverlay({ fragmentSrc, duration, speed = 1.0, onDone, opacity: maxOpacity = 0.6 }) {
+  const canvasRef = useRef(null);
+  const [opacity, setOpacity] = useState(0);
+
   useEffect(() => {
-    const t = setTimeout(onDone, 7000);
-    return () => clearTimeout(t);
-  }, [onDone]);
-  const size = Math.ceil(Math.hypot(window.innerWidth, window.innerHeight)) * 2;
-  const center = { position: "absolute", left: "50%", top: "50%", width: size, height: size, marginLeft: -size / 2, marginTop: -size / 2, borderRadius: "50%" };
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const gl = canvas.getContext("webgl", { alpha: true, premultipliedAlpha: false });
+    if (!gl) { onDone?.(); return; }
+
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    gl.viewport(0, 0, canvas.width, canvas.height);
+
+    const vs = gl.createShader(gl.VERTEX_SHADER);
+    gl.shaderSource(vs, SHADER_VERTEX);
+    gl.compileShader(vs);
+    const fs = gl.createShader(gl.FRAGMENT_SHADER);
+    gl.shaderSource(fs, fragmentSrc);
+    gl.compileShader(fs);
+    if (!gl.getShaderParameter(fs, gl.COMPILE_STATUS)) {
+      console.warn("Shader compile error:", gl.getShaderInfoLog(fs));
+      onDone?.();
+      return;
+    }
+    const prog = gl.createProgram();
+    gl.attachShader(prog, vs);
+    gl.attachShader(prog, fs);
+    gl.linkProgram(prog);
+    gl.useProgram(prog);
+
+    const buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1,1,-1,-1,1,1,1]), gl.STATIC_DRAW);
+    const a = gl.getAttribLocation(prog, "a");
+    gl.enableVertexAttribArray(a);
+    gl.vertexAttribPointer(a, 2, gl.FLOAT, false, 0, 0);
+
+    const tLoc = gl.getUniformLocation(prog, "t");
+    const rLoc = gl.getUniformLocation(prog, "r");
+    gl.uniform2f(rLoc, canvas.width, canvas.height);
+
+    const start = performance.now();
+    let raf;
+    const fadeIn = duration * 0.12;
+    const fadeOut = duration * 0.2;
+
+    const loop = () => {
+      const elapsed = (performance.now() - start) / 1000;
+      if (elapsed > duration) { onDone?.(); return; }
+
+      // Fade envelope
+      let env = maxOpacity;
+      if (elapsed < fadeIn) env = maxOpacity * (elapsed / fadeIn);
+      else if (elapsed > duration - fadeOut) env = maxOpacity * ((duration - elapsed) / fadeOut);
+      setOpacity(env);
+
+      gl.uniform1f(tLoc, elapsed * speed);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [fragmentSrc, duration, speed, maxOpacity, onDone]);
+
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 200, pointerEvents: "none" }}>
-      <div style={{ ...center, background: "var(--accent)", animation: "rippleFill 6.48s ease-out forwards" }} />
-      {[0, 0.86, 1.73].map((delay, i) => (
-        <div key={i} style={{ ...center, border: `${3 - i}px solid var(--accent)`, background: "transparent", animation: `rippleRing 6.48s ease-out ${delay}s forwards`, opacity: 0 }} />
-      ))}
-    </div>
+    <canvas ref={canvasRef} style={{
+      position: "fixed", inset: 0, zIndex: 200, pointerEvents: "none",
+      width: "100vw", height: "100vh", opacity,
+      transition: "opacity 0.3s ease",
+    }} />
   );
 }
 
-// --- Level Up Overlay (golden pulse) ---
+// --- Level Up Overlay (golden shader + text) ---
 
 function LevelUpOverlay({ rankName, onDone }) {
-  useEffect(() => {
-    const t = setTimeout(onDone, 5200);
-    return () => clearTimeout(t);
-  }, [onDone]);
   return (
-    <div style={{
-      position: "fixed", inset: 0, zIndex: 250, pointerEvents: "none",
-      display: "flex", alignItems: "center", justifyContent: "center",
-    }}>
-      <div style={{
-        position: "absolute", inset: 0,
-        background: "radial-gradient(ellipse at center, rgba(212,168,67,0.3) 0%, rgba(212,168,67,0) 70%)",
-        animation: "goldenPulse 5s ease-in-out forwards",
-      }} />
+    <div style={{ position: "fixed", inset: 0, zIndex: 250, pointerEvents: "none", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <ShaderOverlay fragmentSrc={SHADER_TIMER_START} duration={5} speed={0.4} onDone={onDone} opacity={0.55} />
       <div style={{
         fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: "1.8rem", fontWeight: 700,
-        color: "#d4a843", textAlign: "center", textShadow: "0 0 30px rgba(212,168,67,0.5)",
-        animation: "fadeIn 0.8s ease-out both",
+        color: "#d4a843", textAlign: "center", textShadow: "0 0 40px rgba(212,168,67,0.6), 0 0 80px rgba(212,168,67,0.3)",
+        animation: "fadeIn 0.8s ease-out both", position: "relative", zIndex: 251,
       }}>
         {rankName}
       </div>
     </div>
   );
+}
+
+// --- Night Shader Background ---
+
+function NightShaderBg() {
+  return <ShaderOverlay fragmentSrc={SHADER_NIGHT} duration={99999} speed={0.08} opacity={0.25} />;
 }
 
 // --- Timer Component (reused, extended with duration prop) ---
@@ -224,7 +317,7 @@ function PomodoroTimer({ duration = 1500, onComplete, soundEnabled = true, onTic
 
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.6rem", padding: "0.3rem 0 0.8rem" }}>
-      {showRipple && <RippleOverlay onDone={() => setShowRipple(false)} />}
+      {showRipple && <ShaderOverlay fragmentSrc={SHADER_TIMER_START} duration={6.48} speed={0.6} onDone={() => setShowRipple(false)} opacity={0.5} />}
       {intention && (
         <div style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: "1.05rem", fontWeight: 700, textAlign: "center", lineHeight: 1.3, maxWidth: 280, padding: "0 0.5rem" }}>
           {intention}
@@ -988,7 +1081,8 @@ export default function HealthTracker({ theme, settings, onSettingsChange }) {
   const isDesktop = typeof window !== "undefined" && window.innerWidth >= 640;
 
   const renderTimerPanel = () => (
-    <div style={isGrayscale ? { filter: "grayscale(0.85) brightness(0.92)" } : undefined}>
+    <div style={isGrayscale ? { filter: "grayscale(0.85) brightness(0.92)", position: "relative" } : undefined}>
+      {isGrayscale && <NightShaderBg />}
       {/* Wind-down banner (21:30–23:59) */}
       {isWindDown && !isPastMidnight && (
         <div style={{ background: "var(--accent)", color: "#fff", padding: "0.5rem 0.8rem", borderRadius: 8, marginBottom: "0.8rem", fontSize: "0.72rem", fontWeight: 600, textAlign: "center" }}>
