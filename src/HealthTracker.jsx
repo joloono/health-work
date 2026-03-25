@@ -106,6 +106,34 @@ function RippleOverlay({ onDone }) {
   );
 }
 
+// --- Level Up Overlay (golden pulse) ---
+
+function LevelUpOverlay({ rankName, onDone }) {
+  useEffect(() => {
+    const t = setTimeout(onDone, 5200);
+    return () => clearTimeout(t);
+  }, [onDone]);
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 250, pointerEvents: "none",
+      display: "flex", alignItems: "center", justifyContent: "center",
+    }}>
+      <div style={{
+        position: "absolute", inset: 0,
+        background: "radial-gradient(ellipse at center, rgba(212,168,67,0.3) 0%, rgba(212,168,67,0) 70%)",
+        animation: "goldenPulse 5s ease-in-out forwards",
+      }} />
+      <div style={{
+        fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: "1.8rem", fontWeight: 700,
+        color: "#d4a843", textAlign: "center", textShadow: "0 0 30px rgba(212,168,67,0.5)",
+        animation: "fadeIn 0.8s ease-out both",
+      }}>
+        {rankName}
+      </div>
+    </div>
+  );
+}
+
 // --- Timer Component (reused, extended with duration prop) ---
 
 function PomodoroTimer({ duration = 1500, onComplete, soundEnabled = true, onTick, intention, timerKey, persist = {} }) {
@@ -640,15 +668,15 @@ function TodoList({ todos, dayId, openYesterday, onUpdate, expanded, onToggleExp
 
 function MiniConfetti({ active }) {
   if (!active) return null;
-  const particles = Array.from({ length: 12 }, (_, i) => {
-    const angle = (i / 12) * 360;
-    const dist = 14 + Math.random() * 10;
-    const size = 3 + Math.random() * 3;
+  const particles = Array.from({ length: 16 }, (_, i) => {
+    const angle = (i / 16) * 360;
+    const dist = 28 + Math.random() * 22;
+    const size = 3 + Math.random() * 4;
     const colors = ["var(--accent)", "var(--done)", "#d4a843", "#6aafcf", "#a8826a"];
-    return { angle, dist, size, color: colors[i % colors.length], delay: Math.random() * 0.15 };
+    return { angle, dist, size, color: colors[i % colors.length], delay: Math.random() * 0.2 };
   });
   return (
-    <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 5 }}>
+    <div style={{ position: "absolute", left: -20, top: -20, right: -20, bottom: -20, pointerEvents: "none", zIndex: 5, overflow: "visible" }}>
       {particles.map((p, i) => (
         <div key={i} style={{
           position: "absolute", left: "50%", top: "50%", width: p.size, height: p.size,
@@ -671,7 +699,7 @@ function TodoItem({ t, onToggle, onDelete }) {
   };
   return (
     <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", padding: "0.35rem 0.3rem", borderBottom: "1px solid var(--border)" }}>
-      <div style={{ position: "relative", width: 22, height: 22, flexShrink: 0 }}>
+      <div style={{ position: "relative", width: 22, height: 22, flexShrink: 0, overflow: "visible" }}>
         <MiniConfetti active={celebrating} />
         <button onClick={handleClick} style={{
           width: 22, height: 22, borderRadius: 4, border: `2px solid ${t.done ? "var(--done)" : "var(--border)"}`,
@@ -778,6 +806,8 @@ export default function HealthTracker({ theme, settings, onSettingsChange }) {
   const [showNotes, setShowNotes] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
   const [showNewProject, setShowNewProject] = useState(false);
+  const [levelUpRank, setLevelUpRank] = useState(null);
+  const prevLevel = useRef(null);
   const [categories, setCategories] = useState([]);
   const [newCatLabel, setNewCatLabel] = useState("");
   const [showNewCat, setShowNewCat] = useState(false);
@@ -841,6 +871,19 @@ export default function HealthTracker({ theme, settings, onSettingsChange }) {
     }).catch(() => {});
   }, [dayData, gamification]);
 
+  // Level-up detection (must be before early return to respect Rules of Hooks)
+  const currentLevel = dayData ? getLevelProgress(
+    (gamification?.current?.cumulative_xp || 0) +
+    calcEffectiveXP(calcDayXPFlex(dayData.pomodoros || [], (dayData.movements || []).length).dayXP, dayData.streakLength || 0) -
+    (dayData.day?.effective_xp || 0)
+  ).level : 0;
+  useEffect(() => {
+    if (prevLevel.current !== null && currentLevel > prevLevel.current) {
+      setLevelUpRank(getRank(currentLevel).name);
+    }
+    prevLevel.current = currentLevel;
+  }, [currentLevel]);
+
   if (loading || !dayData) return <div style={{ padding: "2rem", textAlign: "center" }}>Laden...</div>;
 
   // Compute stats
@@ -854,9 +897,13 @@ export default function HealthTracker({ theme, settings, onSettingsChange }) {
   const rank = getRank(levelProgress.level);
   const streakMult = getStreakMultiplier(streak);
 
-  // Late night warning
+  // Time-of-day awareness
   const now = new Date();
-  const isLate = now.getHours() > 22 || (now.getHours() === 22 && now.getMinutes() >= 30);
+  const h = now.getHours();
+  const m = now.getMinutes();
+  const isWindDown = h > 21 || (h === 21 && m >= 30); // 21:30+
+  const isPastMidnight = h >= 0 && (h < 2 || (h === 2 && m < 30)); // 00:00–02:29
+  const isGrayscale = isWindDown || isPastMidnight;
 
   // --- Action Handlers ---
 
@@ -941,11 +988,17 @@ export default function HealthTracker({ theme, settings, onSettingsChange }) {
   const isDesktop = typeof window !== "undefined" && window.innerWidth >= 640;
 
   const renderTimerPanel = () => (
-    <div>
-      {/* Late night banner */}
-      {isLate && (
+    <div style={isGrayscale ? { filter: "grayscale(0.85) brightness(0.92)" } : undefined}>
+      {/* Wind-down banner (21:30–23:59) */}
+      {isWindDown && !isPastMidnight && (
         <div style={{ background: "var(--accent)", color: "#fff", padding: "0.5rem 0.8rem", borderRadius: 8, marginBottom: "0.8rem", fontSize: "0.72rem", fontWeight: 600, textAlign: "center" }}>
           Die Stunden vor Mitternacht sind doppelt so viel wert, die danach kosten doppelt so viel. Wind down now.
+        </div>
+      )}
+      {/* Past midnight banner (00:00–02:29) */}
+      {isPastMidnight && (
+        <div style={{ background: "#2a2a2a", color: "#e0e0e0", padding: "0.8rem 1rem", borderRadius: 8, marginBottom: "0.8rem", fontSize: "0.75rem", fontWeight: 500, textAlign: "center", lineHeight: 1.5 }}>
+          Morgen vormittags w&uuml;rdest du bessere Arbeit machen... Schreib was auf und schlaf dann.
         </div>
       )}
 
@@ -1302,6 +1355,7 @@ export default function HealthTracker({ theme, settings, onSettingsChange }) {
   return (
     <div style={{ ...pageStyle(theme), maxWidth: isDesktop ? 800 : 480 }}>
       <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+      {levelUpRank && <LevelUpOverlay rankName={levelUpRank} onDone={() => setLevelUpRank(null)} />}
 
       {/* Mobile: Tabs */}
       {!isDesktop && (

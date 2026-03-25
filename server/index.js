@@ -40,7 +40,11 @@ if (process.env.NODE_ENV !== "production") {
 
 // Get or create today's day record
 app.get("/api/today", (req, res) => {
-  const today = new Date().toISOString().slice(0, 10);
+  // Day resets at 02:30 local time — before that, still "yesterday"
+  const now = new Date();
+  const effective = (now.getHours() < 2 || (now.getHours() === 2 && now.getMinutes() < 30))
+    ? new Date(now.getTime() - 86400000) : now;
+  const today = `${effective.getFullYear()}-${String(effective.getMonth() + 1).padStart(2, "0")}-${String(effective.getDate()).padStart(2, "0")}`;
   let day = db.getDay(today);
   if (!day) {
     db.createDay(today);
