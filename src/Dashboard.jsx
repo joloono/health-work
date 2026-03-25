@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { api } from "./api.js";
-import { btnStyle, pageStyle, CATEGORY_COLORS } from "./constants.js";
+import { btnStyle, chipStyle, pageStyle, CATEGORY_COLORS } from "./constants.js";
+import { aggregateByProject, classifyQuadrant, auditSummary, QUADRANTS } from "./audit.js";
 
 // --- Shared helpers ---
 
@@ -513,6 +514,206 @@ function AuditKalender() {
 // ============================================================
 // SHARED
 // ============================================================
+// AUDIT: Wert-Energie-Zeit Bubble Chart
+// ============================================================
+
+const CHART_W = 320, CHART_H = 260, PAD = 40, PAD_R = 20, PAD_B = 30;
+const PLOT_W = CHART_W - PAD - PAD_R, PLOT_H = CHART_H - PAD - PAD_B;
+
+function bizToX(biz) { return PAD + ((biz - 1) / 3) * PLOT_W; }
+function energyToY(energy) { return PAD + ((2 - energy) / 4) * PLOT_H; }
+
+// Deterministic jitter from entry id so it's stable across re-renders
+function jitter(id, axis) {
+  const seed = ((id * 2654435761) >>> 0) + (axis ? 13 : 0);
+  return ((seed % 17) - 8); // ±8px
+}
+
+function WertEnergieAudit() {
+  const [entries, setEntries] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filterProject, setFilterProject] = useState(null);
+  const [filterTag, setFilterTag] = useState(null);
+  const [selected, setSelected] = useState(null);
+  const [days, setDays] = useState(7);
+
+  useEffect(() => {
+    setLoading(true);
+    api.getWeekEntries(days).then((data) => { setEntries(data || []); setLoading(false); }).catch(() => setLoading(false));
+  }, [days]);
+
+  const summary = useMemo(() => entries.length ? auditSummary(entries) : null, [entries]);
+  const projectAggs = useMemo(() => aggregateByProject(entries), [entries]);
+
+  // Unique projects for filter
+  const projects = useMemo(() => {
+    const seen = new Map();
+    for (const e of entries) {
+      const key = e.project_id || 0;
+      if (!seen.has(key)) seen.set(key, { id: key, name: e.project_name || "Kein Projekt", color: e.project_color });
+    }
+    return [...seen.values()];
+  }, [entries]);
+
+  // Unique tags for filter
+  const tags = useMemo(() => {
+    const seen = new Set();
+    for (const e of entries) {
+      for (const t of (e.value_tags || "").split(",").map((s) => s.trim()).filter(Boolean)) seen.add(t);
+    }
+    return [...seen];
+  }, [entries]);
+
+  const isActive = (e) => {
+    if (filterProject != null && (e.project_id || 0) !== filterProject) return false;
+    if (filterTag != null && !(e.value_tags || "").split(",").map((s) => s.trim()).includes(filterTag)) return false;
+    return true;
+  };
+
+  if (loading) return <div style={{ padding: "2rem", textAlign: "center", color: "var(--fg-dim)" }}>Laden...</div>;
+  if (!entries.length) return <Empty text="Noch keine bewerteten Einträge diese Woche." />;
+
+  const quadrantLabel = (label, x, y) => (
+    <text key={label} x={x} y={y} fill="var(--fg-dim)" fontSize="7" fontWeight="600" opacity="0.4" textAnchor="middle" fontFamily="'IBM Plex Sans', sans-serif">{label}</text>
+  );
+
+  return (
+    <div>
+      {/* Time range */}
+      <div style={{ display: "flex", gap: "0.25rem", marginBottom: "0.6rem" }}>
+        {[7, 14, 30].map((d) => (
+          <button key={d} onClick={() => { setDays(d); setSelected(null); }} className="chip-interactive"
+            style={{ ...chipStyle(days === d), padding: "0.3rem 0.6rem", fontSize: "0.6rem" }}>
+            {d} Tage
+          </button>
+        ))}
+      </div>
+
+      {/* Filter chips */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.2rem", marginBottom: "0.6rem" }}>
+        {projects.map((p) => (
+          <button key={p.id} onClick={() => { setFilterProject(filterProject === p.id ? null : p.id); setFilterTag(null); setSelected(null); }} className="chip-interactive"
+            style={{ ...chipStyle(filterProject === p.id, p.color || "var(--accent)"), padding: "0.2rem 0.5rem", fontSize: "0.55rem" }}>
+            {p.name}
+          </button>
+        ))}
+        {tags.map((t) => {
+          const cat = CATEGORY_COLORS[t];
+          return (
+            <button key={t} onClick={() => { setFilterTag(filterTag === t ? null : t); setFilterProject(null); setSelected(null); }} className="chip-interactive"
+              style={{ ...chipStyle(filterTag === t, cat?.color || "var(--fg-dim)"), padding: "0.2rem 0.5rem", fontSize: "0.55rem" }}>
+              {cat?.icon || ""} {cat?.label || t}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Bubble Chart SVG */}
+      <svg viewBox={`0 0 ${CHART_W} ${CHART_H}`} width="100%" style={{ maxWidth: CHART_W, display: "block", margin: "0 auto" }}>
+        {/* Grid lines */}
+        {[1, 2, 3, 4].map((v) => (
+          <line key={`gx${v}`} x1={bizToX(v)} y1={PAD} x2={bizToX(v)} y2={CHART_H - PAD_B} stroke="var(--border)" strokeWidth="0.5" strokeDasharray="3,3" />
+        ))}
+        {[-2, -1, 0, 1, 2].map((v) => (
+          <line key={`gy${v}`} x1={PAD} y1={energyToY(v)} x2={CHART_W - PAD_R} y2={energyToY(v)} stroke="var(--border)" strokeWidth="0.5" strokeDasharray="3,3" />
+        ))}
+
+        {/* Axis labels */}
+        {[1, 2, 3, 4].map((v) => (
+          <text key={`lx${v}`} x={bizToX(v)} y={CHART_H - PAD_B + 14} fill="var(--fg-dim)" fontSize="7" textAnchor="middle" fontFamily="'JetBrains Mono', monospace">{v}</text>
+        ))}
+        {[-2, -1, 0, 1, 2].map((v) => (
+          <text key={`ly${v}`} x={PAD - 6} y={energyToY(v) + 3} fill="var(--fg-dim)" fontSize="7" textAnchor="end" fontFamily="'JetBrains Mono', monospace">{v > 0 ? `+${v}` : v}</text>
+        ))}
+        <text x={PAD + PLOT_W / 2} y={CHART_H - 2} fill="var(--fg-dim)" fontSize="7" textAnchor="middle" fontWeight="600" fontFamily="'IBM Plex Sans', sans-serif">Geschäftswert →</text>
+        <text x={8} y={PAD + PLOT_H / 2} fill="var(--fg-dim)" fontSize="7" textAnchor="middle" fontWeight="600" fontFamily="'IBM Plex Sans', sans-serif" transform={`rotate(-90, 8, ${PAD + PLOT_H / 2})`}>Energie ↑</text>
+
+        {/* Quadrant labels */}
+        {quadrantLabel("Hebel", bizToX(3.5), energyToY(1.5))}
+        {quadrantLabel("Pflicht", bizToX(3.5), energyToY(-1.5))}
+        {quadrantLabel("Energie-Geber", bizToX(1.5), energyToY(1.5))}
+        {quadrantLabel("Eliminieren", bizToX(1.5), energyToY(-1.5))}
+
+        {/* Center cross (thresholds) */}
+        <line x1={bizToX(2.5)} y1={PAD} x2={bizToX(2.5)} y2={CHART_H - PAD_B} stroke="var(--fg-dim)" strokeWidth="0.5" opacity="0.2" />
+        <line x1={PAD} y1={energyToY(0.5)} x2={CHART_W - PAD_R} y2={energyToY(0.5)} stroke="var(--fg-dim)" strokeWidth="0.5" opacity="0.2" />
+
+        {/* Entry bubbles */}
+        {entries.map((e) => {
+          const active = isActive(e);
+          const r = Math.max(4, Math.sqrt(e.duration_minutes || 25) * 2.5);
+          const cx = bizToX(e.biz_rating) + jitter(e.id, false);
+          const cy = energyToY(e.energy_rating) + jitter(e.id, true);
+          return (
+            <circle key={e.id} cx={cx} cy={cy} r={r}
+              fill={e.project_color || "var(--accent)"} opacity={active ? 0.6 : 0.1}
+              stroke={selected === e.id ? "var(--fg)" : "none"} strokeWidth={selected === e.id ? 1.5 : 0}
+              style={{ cursor: "pointer", transition: "opacity 0.2s" }}
+              onClick={() => setSelected(selected === e.id ? null : e.id)}
+            />
+          );
+        })}
+
+        {/* Aggregated project markers (◆) */}
+        {projectAggs.filter((p) => p.count >= 2).filter((p) => filterProject == null || p.projectId === filterProject).filter((p) => filterTag == null).map((p) => {
+          const cx = bizToX(p.avgBiz);
+          const cy = energyToY(p.avgEnergy);
+          const s = 6;
+          return (
+            <g key={`agg-${p.projectId}`}>
+              <polygon points={`${cx},${cy - s} ${cx + s},${cy} ${cx},${cy + s} ${cx - s},${cy}`}
+                fill="none" stroke={p.projectColor || "var(--accent)"} strokeWidth="1.5" opacity="0.9" />
+              <text x={cx + s + 3} y={cy + 3} fill={p.projectColor || "var(--accent)"} fontSize="6" fontWeight="600" fontFamily="'IBM Plex Sans', sans-serif" opacity="0.8">
+                {p.projectName}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+
+      {/* Selected entry detail */}
+      {selected && (() => {
+        const e = entries.find((x) => x.id === selected);
+        if (!e) return null;
+        const q = classifyQuadrant(e.biz_rating, e.energy_rating);
+        return (
+          <div style={{ marginTop: "0.6rem", padding: "0.6rem", background: "var(--card-bg)", borderRadius: 8, border: "1px solid var(--border)", fontSize: "0.7rem" }}>
+            <div style={{ fontWeight: 600, marginBottom: "0.2rem" }}>{e.intention}</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", color: "var(--fg-dim)", fontSize: "0.6rem" }}>
+              {e.project_name && <span style={{ color: e.project_color || "var(--accent)" }}>{e.project_name}</span>}
+              <span>{e.duration_minutes} min</span>
+              <span>Wert: {e.biz_rating}</span>
+              <span>Energie: {e.energy_rating > 0 ? `+${e.energy_rating}` : e.energy_rating}</span>
+              <span style={{ fontStyle: "italic" }}>{q.label}</span>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Quadrant breakdown summary */}
+      {summary && (
+        <div style={{ marginTop: "0.8rem" }}>
+          <div style={{ fontSize: "0.6rem", fontWeight: 600, color: "var(--fg-dim)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.3rem" }}>Zeitverteilung</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.3rem" }}>
+            {Object.values(QUADRANTS).map((q) => {
+              const data = summary.quadrantBreakdown[q.key];
+              const pct = summary.totalMinutes > 0 ? Math.round((data.minutes / summary.totalMinutes) * 100) : 0;
+              return (
+                <div key={q.key} style={{ padding: "0.4rem", background: "var(--muted)", borderRadius: 6, fontSize: "0.6rem" }}>
+                  <div style={{ fontWeight: 600, marginBottom: "0.1rem" }}>{q.label}</div>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "0.7rem", fontWeight: 700 }}>{pct}%</div>
+                  <div style={{ color: "var(--fg-dim)", fontSize: "0.5rem" }}>{data.minutes} min · {data.count} Einträge</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
 
 function Empty({ text }) {
   return <div style={{ padding: "2.5rem 1rem", textAlign: "center", color: "var(--fg-dim)", fontSize: "0.82rem", fontStyle: "italic" }}>{text}</div>;
@@ -542,6 +743,7 @@ export default function Dashboard({ theme }) {
   const tabs = [
     { id: "tageslog", label: "Tag" },
     { id: "projekte", label: "Projekte" },
+    { id: "audit", label: "Audit" },
     { id: "woche", label: "Woche" },
     { id: "kalender", label: "Kalender" },
   ];
@@ -589,6 +791,7 @@ export default function Dashboard({ theme }) {
             </>
           )}
           {tab === "projekte" && <ProjektView dayData={dayData} />}
+          {tab === "audit" && <WertEnergieAudit />}
           {tab === "woche" && <Wochenüberblick weekData={weekData} />}
           {tab === "kalender" && <AuditKalender />}
         </>

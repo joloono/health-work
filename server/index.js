@@ -174,6 +174,13 @@ app.get("/api/week", (req, res) => {
   res.json(summary);
 });
 
+// Week entries (for audit bubble chart)
+app.get("/api/week/entries", (req, res) => {
+  const days = parseInt(req.query.days) || 7;
+  const entries = db.getWeekEntries(days);
+  res.json(entries);
+});
+
 // Calendar month view
 app.get("/api/calendar", (req, res) => {
   const month = req.query.month || new Date().toISOString().slice(0, 7); // "2026-03"

@@ -397,6 +397,27 @@ function getWeekSummary() {
   return stmtWeekSummary.all();
 }
 
+// --- Week entries (for audit bubble chart) ---
+
+const stmtWeekEntries = db.prepare(`
+  SELECT p.id, p.intention, p.biz_rating, p.energy_rating, p.duration_minutes,
+         p.entry_type, p.value_tags, p.project_id, p.completed_at, p.notes,
+         d.date,
+         pr.name AS project_name, pr.color AS project_color
+  FROM pomodoros p
+  LEFT JOIN projects pr ON p.project_id = pr.id
+  JOIN days d ON p.day_id = d.id
+  WHERE d.date >= date('now', ? || ' days')
+    AND p.completed_at IS NOT NULL
+    AND p.biz_rating IS NOT NULL
+    AND p.energy_rating IS NOT NULL
+  ORDER BY p.completed_at
+`);
+
+function getWeekEntries(days) {
+  return stmtWeekEntries.all(`-${days - 1}`);
+}
+
 // --- Calendar (month view) ---
 
 const stmtCalendar = db.prepare(`
@@ -593,6 +614,7 @@ module.exports = {
   upsertGamification,
   getGamificationHistory,
   getWeekSummary,
+  getWeekEntries,
   getCalendar,
   getRecentDays,
   calcStreakLength,

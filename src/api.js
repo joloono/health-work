@@ -104,6 +104,8 @@ export const api = {
 
   getWeekSummary: () => request("/api/week"),
 
+  getWeekEntries: (days = 7) => request(`/api/week/entries?days=${days}`),
+
   getCalendar: (month) => request(`/api/calendar?month=${month || new Date().toISOString().slice(0, 7)}`),
 
   getRecentDays: (count = 7) => request(`/api/days/recent?count=${count}`),
