@@ -104,8 +104,8 @@ app.patch("/api/projects/:id", (req, res) => {
 // --- Pomodoros ---
 
 app.post("/api/pomodoros", (req, res) => {
-  const { day_id, block_index, pom_index, intention, value_tags, project_id, entry_type, duration_minutes, notes } = req.body;
-  const id = db.createPomodoro(day_id, block_index || 0, pom_index || 0, intention, value_tags, project_id, entry_type, duration_minutes, notes);
+  const { day_id, block_index, pom_index, intention, value_tags, project_id, entry_type, duration_minutes, notes, links } = req.body;
+  const id = db.createPomodoro(day_id, block_index || 0, pom_index || 0, intention, value_tags, project_id, entry_type, duration_minutes, notes, links);
   res.json({ id });
 });
 

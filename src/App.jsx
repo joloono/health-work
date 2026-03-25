@@ -135,11 +135,39 @@ function TopNav({ view, setView, settings, onSettingsChange }) {
   );
 }
 
-function SettingsView({ theme }) {
+function NordsternSettings({ settings, onChange }) {
+  const textareaStyle = {
+    width: "100%", padding: "0.6rem", borderRadius: 8, border: "1px solid var(--border)",
+    background: "var(--card-bg)", color: "var(--fg)", fontFamily: "inherit", fontSize: "0.78rem",
+    lineHeight: 1.5, resize: "vertical", minHeight: "3rem", boxSizing: "border-box",
+  };
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+      <div>
+        <div style={{ fontSize: "0.65rem", fontWeight: 600, color: "var(--fg-dim)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.3rem" }}>Mein Nordstern</div>
+        <textarea value={settings.nordstern || ""} onChange={(e) => onChange({ nordstern: e.target.value })}
+          placeholder="Ein Satz, der alles zusammenfasst..." style={textareaStyle} rows={2} />
+      </div>
+      <div>
+        <div style={{ fontSize: "0.65rem", fontWeight: 600, color: "var(--fg-dim)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.3rem" }}>Wer bin ich?</div>
+        <textarea value={settings.identity || ""} onChange={(e) => onChange({ identity: e.target.value })}
+          placeholder="Meine Identität als Solopreneur..." style={textareaStyle} rows={3} />
+      </div>
+      <div>
+        <div style={{ fontSize: "0.65rem", fontWeight: 600, color: "var(--fg-dim)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.3rem" }}>Was treibt mich an?</div>
+        <textarea value={settings.motivators || ""} onChange={(e) => onChange({ motivators: e.target.value })}
+          placeholder="Werte, Motivatoren, was mir wichtig ist..." style={textareaStyle} rows={3} />
+      </div>
+    </div>
+  );
+}
+
+function SettingsView({ theme, settings, onSettingsChange }) {
   const [tab, setTab] = useState("projects");
   const tabs = [
     { id: "projects", label: "Projekte" },
     { id: "categories", label: "Kategorien" },
+    { id: "nordstern", label: "Nordstern" },
   ];
   return (
     <div style={{ ...theme, fontFamily: "'IBM Plex Sans', -apple-system, sans-serif", maxWidth: 480, margin: "0 auto", padding: "1.2rem 1rem 2rem", color: "var(--fg)", minHeight: "100vh", background: "var(--bg)" }}>
@@ -157,6 +185,7 @@ function SettingsView({ theme }) {
       </div>
       {tab === "projects" && <ProjectSettings theme={theme} embedded />}
       {tab === "categories" && <CategorySettings theme={theme} embedded />}
+      {tab === "nordstern" && settings && <NordsternSettings settings={settings} onChange={onSettingsChange} />}
     </div>
   );
 }
@@ -211,7 +240,7 @@ export default function App() {
         <Dashboard theme={theme} />
       )}
       {view === "settings" && (
-        <SettingsView theme={theme} />
+        <SettingsView theme={theme} settings={settings} onSettingsChange={updateSettings} />
       )}
     </div>
   );

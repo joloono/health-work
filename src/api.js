@@ -57,10 +57,10 @@ export const api = {
       body: JSON.stringify({ day_id: dayId, block_index: blockIndex || 0, pom_index: pomIndex || 0, intention, value_tags: valueTags, project_id: projectId, entry_type: entryType, duration_minutes: durationMinutes, notes }),
     }),
 
-  createEntry: (dayId, intention, { entryType = "pomodoro", durationMinutes = 25, projectId, valueTags, notes } = {}) =>
+  createEntry: (dayId, intention, { entryType = "pomodoro", durationMinutes = 25, projectId, valueTags, notes, links } = {}) =>
     request("/api/pomodoros", {
       method: "POST",
-      body: JSON.stringify({ day_id: dayId, block_index: 0, pom_index: 0, intention, value_tags: valueTags || [], project_id: projectId, entry_type: entryType, duration_minutes: durationMinutes, notes }),
+      body: JSON.stringify({ day_id: dayId, block_index: 0, pom_index: 0, intention, value_tags: valueTags || [], project_id: projectId, entry_type: entryType, duration_minutes: durationMinutes, notes, links: links || [] }),
     }),
 
   completePomodoro: (id) =>

@@ -5,6 +5,9 @@ const STORAGE_KEY = "health-settings";
 const defaults = {
   darkMode: false,
   soundEnabled: true,
+  nordstern: "",
+  identity: "",
+  motivators: "",
 };
 
 function load() {

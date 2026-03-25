@@ -66,7 +66,8 @@ function saveTimer(data) {
     }).catch(() => {});
   } else {
     localStorage.removeItem(TIMER_KEY);
-    api.clearTimer().catch(() => {});
+    // Await so server timer is cleared before any subsequent loadData
+    return api.clearTimer().catch(() => {});
   }
 }
 function loadTimer() {
@@ -617,6 +618,21 @@ function TimelineEvent({ ev, fmtTime, onDelete }) {
           </div>
           <div style={{ fontSize: "0.72rem", fontWeight: 500, lineHeight: 1.3 }}>{ev.intention}</div>
           {ev.notes && <div style={{ fontSize: "0.6rem", color: "var(--fg-dim)", marginTop: "0.15rem", fontStyle: "italic" }}>{ev.notes}</div>}
+          {ev.links && ev.links.trim() && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.2rem", marginTop: "0.2rem" }}>
+              {ev.links.split(",").map((url, i) => {
+                const trimmed = url.trim();
+                if (!trimmed) return null;
+                let domain = trimmed; try { domain = new URL(trimmed).hostname.replace(/^www\./, ""); } catch {}
+                return (
+                  <a key={i} href={trimmed} target="_blank" rel="noopener noreferrer" style={{
+                    fontSize: "0.55rem", color: "var(--accent)", background: "rgba(196,77,43,0.08)", borderRadius: 3,
+                    padding: "0.1rem 0.35rem", textDecoration: "none", fontWeight: 500,
+                  }}>{domain}</a>
+                );
+              })}
+            </div>
+          )}
           {(ev.biz_rating != null || ev.energy_rating != null) && (
             <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.2rem", fontSize: "0.55rem" }}>
               {ev.biz_rating != null && <span style={{ color: "var(--accent)" }}>{BIZ_MAP[ev.biz_rating]}</span>}
@@ -721,7 +737,7 @@ function TodoList({ todos, dayId, openYesterday, onUpdate, expanded, onToggleExp
       {uncollected.length > 0 && (
         <div style={{ background: "rgba(196,77,43,0.08)", border: "1px solid var(--accent)", borderRadius: 8, padding: "0.6rem", marginBottom: "0.8rem" }}>
           <div style={{ fontSize: "0.65rem", fontWeight: 600, color: "var(--accent)", marginBottom: "0.4rem" }}>
-            {uncollected.length} offene Aufgaben von gestern
+            {uncollected.length} offene {uncollected.length === 1 ? "Aufgabe" : "Aufgaben"} aus vergangenen Tagen
           </div>
           {uncollected.map((t) => (
             <div key={t.id} style={{ display: "flex", alignItems: "center", gap: "0.4rem", padding: "0.25rem 0" }}>
@@ -890,13 +906,14 @@ export default function HealthTracker({ theme, settings, onSettingsChange }) {
     if (savedTimer && (savedTimer.endTime || savedTimer.paused)) {
       return {
         intention: savedTimer.intention || "", entryType: savedTimer.entryType || "pomodoro",
-        duration: savedTimer.duration || 25, projectId: null, tags: [], notes: "",
+        duration: savedTimer.duration || 25, projectId: null, tags: [], notes: "", links: [],
       };
     }
-    return { intention: "", entryType: "pomodoro", duration: 25, projectId: null, tags: [], notes: "", logBiz: null, logEnergy: null };
+    return { intention: "", entryType: "pomodoro", duration: 25, projectId: null, tags: [], notes: "", links: [], logBiz: null, logEnergy: null };
   });
   const [currentEntryId, setCurrentEntryId] = useState(() => savedTimer?.entryId || null);
   const [showNotes, setShowNotes] = useState(false);
+  const [linkInput, setLinkInput] = useState("");
   const [newProjectName, setNewProjectName] = useState("");
   const [showNewProject, setShowNewProject] = useState(false);
   const [levelUpRank, setLevelUpRank] = useState(null);
@@ -904,6 +921,10 @@ export default function HealthTracker({ theme, settings, onSettingsChange }) {
   const [categories, setCategories] = useState([]);
   const [newCatLabel, setNewCatLabel] = useState("");
   const [showNewCat, setShowNewCat] = useState(false);
+
+  // Ref to track current phase (readable inside loadData's stale closure)
+  const phaseRef = useRef(phase);
+  useEffect(() => { phaseRef.current = phase; }, [phase]);
 
   // Mobile tab
   const [mobileTab, setMobileTab] = useState("timer");
@@ -926,9 +947,10 @@ export default function HealthTracker({ theme, settings, onSettingsChange }) {
       });
       setProjects(projs || []);
       setCategories(cats || []);
-      // Sync server timer to localStorage and restore phase
+      // Sync server timer to localStorage — only restore phase when idle
+      // (avoids overwriting rating/movement phases after timer completion)
       const st = data.activeTimer;
-      if (st && (st.end_time || st.paused)) {
+      if (st && (st.end_time || st.paused) && phaseRef.current === "idle") {
         const synced = syncTimerFromServer(st);
         if (synced) {
           setCurrentEntryId(st.entry_id);
@@ -998,6 +1020,11 @@ export default function HealthTracker({ theme, settings, onSettingsChange }) {
   const isPastMidnight = h >= 0 && (h < 2 || (h === 2 && m < 30)); // 00:00–02:29
   const isGrayscale = isWindDown || isPastMidnight;
 
+  // Sunday recovery nudge
+  const isSunday = now.getDay() === 0;
+  const sundayMinMet = isSunday && entries.filter((e) => e.completed_at).length >= 1 && movements.length >= 1;
+  const showSundayNudge = sundayMinMet && h >= 13;
+
   // --- Action Handlers ---
 
   // Timer mode: create entry, start timer
@@ -1005,7 +1032,7 @@ export default function HealthTracker({ theme, settings, onSettingsChange }) {
     if (!entryConfig.intention.trim()) return;
     const { id } = await api.createEntry(dayData.day.id, entryConfig.intention.trim(), {
       entryType: entryConfig.entryType, durationMinutes: entryConfig.duration,
-      projectId: entryConfig.projectId, valueTags: entryConfig.tags, notes: entryConfig.notes,
+      projectId: entryConfig.projectId, valueTags: entryConfig.tags, notes: entryConfig.notes, links: entryConfig.links,
     });
     setCurrentEntryId(id);
     setPhase("timer");
@@ -1016,7 +1043,7 @@ export default function HealthTracker({ theme, settings, onSettingsChange }) {
     if (!entryConfig.intention.trim()) return;
     const { id } = await api.createEntry(dayData.day.id, entryConfig.intention.trim(), {
       entryType: entryConfig.entryType, durationMinutes: entryConfig.duration,
-      projectId: entryConfig.projectId, valueTags: entryConfig.tags, notes: entryConfig.notes,
+      projectId: entryConfig.projectId, valueTags: entryConfig.tags, notes: entryConfig.notes, links: entryConfig.links,
     });
     await api.completePomodoro(id);
     if (entryConfig.logBiz != null || entryConfig.logEnergy != null) {
@@ -1028,6 +1055,9 @@ export default function HealthTracker({ theme, settings, onSettingsChange }) {
   };
 
   const handleTimerComplete = async () => {
+    // Clear server timer first so loadData won't re-sync a stale timer
+    await api.clearTimer().catch(() => {});
+    localStorage.removeItem(TIMER_KEY);
     if (currentEntryId) await api.completePomodoro(currentEntryId);
     await loadData();
     setPhase("rating");
@@ -1051,9 +1081,10 @@ export default function HealthTracker({ theme, settings, onSettingsChange }) {
   };
 
   const resetConfig = () => {
-    setEntryConfig({ intention: "", entryType: "pomodoro", duration: 25, projectId: null, tags: [], notes: "", logBiz: null, logEnergy: null });
+    setEntryConfig({ intention: "", entryType: "pomodoro", duration: 25, projectId: null, tags: [], notes: "", links: [], logBiz: null, logEnergy: null });
     setCurrentEntryId(null);
     setShowNotes(false);
+    setLinkInput("");
     setShowNewProject(false);
     setNewProjectName("");
   };
@@ -1095,6 +1126,13 @@ export default function HealthTracker({ theme, settings, onSettingsChange }) {
           Morgen vormittags w&uuml;rdest du bessere Arbeit machen... Schreib was auf und schlaf dann.
         </div>
       )}
+      {/* Sunday recovery nudge (13:00+ when minimum met) */}
+      {showSundayNudge && (
+        <div style={{ background: settings?.darkMode ? "#2a2520" : "#f5e6d3", color: settings?.darkMode ? "#e0d5c8" : "#5a4a3a", padding: "0.8rem 1rem", borderRadius: 10, marginBottom: "0.8rem", textAlign: "center" }}>
+          <div style={{ fontSize: "0.82rem", fontWeight: 600, marginBottom: "0.2rem" }}>Sonntagsruhe gesichert</div>
+          <div style={{ fontSize: "0.7rem", fontWeight: 400 }}>Du hast deinen Sonntag gesichert. Geniess den Nachmittag.</div>
+        </div>
+      )}
 
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.8rem" }}>
@@ -1105,6 +1143,11 @@ export default function HealthTracker({ theme, settings, onSettingsChange }) {
           <div style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: "0.85rem", fontWeight: 700, marginTop: "0.1rem" }}>
             {rank.name} <span style={{ fontSize: "0.65rem", color: "var(--fg-dim)", fontWeight: 400 }}>{rank.title}</span>
           </div>
+          {settings?.nordstern && (
+            <div style={{ fontSize: "0.6rem", color: "var(--fg-dim)", fontStyle: "italic", marginTop: "0.15rem", lineHeight: 1.3 }}>
+              {settings.nordstern}
+            </div>
+          )}
         </div>
         <div style={{ display: "flex", gap: "0.8rem", alignItems: "center" }}>
           <div style={{ textAlign: "center" }}>
@@ -1234,6 +1277,47 @@ export default function HealthTracker({ theme, settings, onSettingsChange }) {
                   </button>
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* Links */}
+          <div>
+            <div style={labelStyle}>Links (optional)</div>
+            {entryConfig.links.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem", marginBottom: "0.3rem" }}>
+                {entryConfig.links.map((url, i) => {
+                  let domain = url; try { domain = new URL(url).hostname.replace(/^www\./, ""); } catch {}
+                  return (
+                    <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem", background: "var(--muted)", borderRadius: 4, padding: "0.15rem 0.4rem", fontSize: "0.6rem", color: "var(--fg-dim)" }}>
+                      {domain}
+                      <button onClick={() => setEntryConfig((c) => ({ ...c, links: c.links.filter((_, j) => j !== i) }))} style={{
+                        background: "transparent", border: "none", color: "var(--fg-dim)", cursor: "pointer", fontSize: "0.6rem", padding: "0 0.1rem", lineHeight: 1,
+                      }}>×</button>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+            <div style={{ display: "flex", gap: "0.3rem" }}>
+              <input value={linkInput} onChange={(e) => setLinkInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && linkInput.trim()) {
+                    e.preventDefault();
+                    const url = linkInput.trim().match(/^https?:\/\//) ? linkInput.trim() : `https://${linkInput.trim()}`;
+                    setEntryConfig((c) => ({ ...c, links: [...c.links, url] }));
+                    setLinkInput("");
+                  }
+                }}
+                placeholder="URL einfügen..." style={{ ...inputStyle, fontSize: "0.78rem", flex: 1 }} />
+              <button onClick={() => {
+                if (!linkInput.trim()) return;
+                const url = linkInput.trim().match(/^https?:\/\//) ? linkInput.trim() : `https://${linkInput.trim()}`;
+                setEntryConfig((c) => ({ ...c, links: [...c.links, url] }));
+                setLinkInput("");
+              }} className="btn-interactive" disabled={!linkInput.trim()} style={{
+                ...btnStyle(linkInput.trim() ? "var(--accent)" : "var(--muted)", linkInput.trim() ? "#fff" : "var(--fg-dim)", "0.78rem"),
+                padding: "0.4rem 0.6rem", opacity: linkInput.trim() ? 1 : 0.5,
+              }}>+</button>
             </div>
           </div>
 
@@ -1381,6 +1465,47 @@ export default function HealthTracker({ theme, settings, onSettingsChange }) {
             <div style={labelStyle}>Notiz (optional)</div>
             <input value={entryConfig.notes} onChange={(e) => setEntryConfig((c) => ({ ...c, notes: e.target.value }))}
               placeholder="Optional..." style={{ ...inputStyle, fontSize: "0.78rem" }} />
+          </div>
+
+          {/* Links */}
+          <div>
+            <div style={labelStyle}>Links (optional)</div>
+            {entryConfig.links.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem", marginBottom: "0.3rem" }}>
+                {entryConfig.links.map((url, i) => {
+                  let domain = url; try { domain = new URL(url).hostname.replace(/^www\./, ""); } catch {}
+                  return (
+                    <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem", background: "var(--muted)", borderRadius: 4, padding: "0.15rem 0.4rem", fontSize: "0.6rem", color: "var(--fg-dim)" }}>
+                      {domain}
+                      <button onClick={() => setEntryConfig((c) => ({ ...c, links: c.links.filter((_, j) => j !== i) }))} style={{
+                        background: "transparent", border: "none", color: "var(--fg-dim)", cursor: "pointer", fontSize: "0.6rem", padding: "0 0.1rem", lineHeight: 1,
+                      }}>×</button>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+            <div style={{ display: "flex", gap: "0.3rem" }}>
+              <input value={linkInput} onChange={(e) => setLinkInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && linkInput.trim()) {
+                    e.preventDefault();
+                    const url = linkInput.trim().match(/^https?:\/\//) ? linkInput.trim() : `https://${linkInput.trim()}`;
+                    setEntryConfig((c) => ({ ...c, links: [...c.links, url] }));
+                    setLinkInput("");
+                  }
+                }}
+                placeholder="URL einfügen..." style={{ ...inputStyle, fontSize: "0.78rem", flex: 1 }} />
+              <button onClick={() => {
+                if (!linkInput.trim()) return;
+                const url = linkInput.trim().match(/^https?:\/\//) ? linkInput.trim() : `https://${linkInput.trim()}`;
+                setEntryConfig((c) => ({ ...c, links: [...c.links, url] }));
+                setLinkInput("");
+              }} className="btn-interactive" disabled={!linkInput.trim()} style={{
+                ...btnStyle(linkInput.trim() ? "var(--accent)" : "var(--muted)", linkInput.trim() ? "#fff" : "var(--fg-dim)", "0.78rem"),
+                padding: "0.4rem 0.6rem", opacity: linkInput.trim() ? 1 : 0.5,
+              }}>+</button>
+            </div>
           </div>
 
           {/* Log Button */}

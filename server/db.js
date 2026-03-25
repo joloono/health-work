@@ -160,6 +160,9 @@ try {
   if (!pomCols.includes("notes")) {
     db.exec("ALTER TABLE pomodoros ADD COLUMN notes TEXT DEFAULT ''");
   }
+  if (!pomCols.includes("links")) {
+    db.exec("ALTER TABLE pomodoros ADD COLUMN links TEXT DEFAULT ''");
+  }
 } catch {}
 
 // Create todos table
@@ -251,7 +254,7 @@ function getAllProjects() {
 // --- Pomodoro operations ---
 
 const stmtCreatePom = db.prepare(
-  "INSERT INTO pomodoros (day_id, block_index, pom_index, intention, value_tags, project_id, entry_type, duration_minutes, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+  "INSERT INTO pomodoros (day_id, block_index, pom_index, intention, value_tags, project_id, entry_type, duration_minutes, notes, links) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 );
 const stmtCompletePom = db.prepare(
   "UPDATE pomodoros SET completed_at = datetime('now') WHERE id = ?"
@@ -263,9 +266,10 @@ const stmtGetPomsByDay = db.prepare(
   "SELECT p.*, pr.name AS project_name, pr.color AS project_color FROM pomodoros p LEFT JOIN projects pr ON p.project_id = pr.id WHERE p.day_id = ? ORDER BY p.started_at"
 );
 
-function createPomodoro(dayId, blockIndex, pomIndex, intention, valueTags, projectId, entryType, durationMinutes, notes) {
+function createPomodoro(dayId, blockIndex, pomIndex, intention, valueTags, projectId, entryType, durationMinutes, notes, links) {
   const tags = Array.isArray(valueTags) ? valueTags.join(",") : (valueTags || "");
-  const result = stmtCreatePom.run(dayId, blockIndex || 0, pomIndex || 0, intention, tags, projectId || null, entryType || "pomodoro", durationMinutes || 25, notes || "");
+  const linksStr = Array.isArray(links) ? links.join(",") : (links || "");
+  const result = stmtCreatePom.run(dayId, blockIndex || 0, pomIndex || 0, intention, tags, projectId || null, entryType || "pomodoro", durationMinutes || 25, notes || "", linksStr);
   return result.lastInsertRowid;
 }
 
@@ -487,8 +491,13 @@ const stmtGetTodosByDay = db.prepare(
 const stmtGetOpenTodosYesterday = db.prepare(`
   SELECT t.* FROM todos t
   JOIN days d ON t.day_id = d.id
-  WHERE d.date = date(?, '-1 day') AND t.done = 0
-  ORDER BY t.sort_order, t.created_at
+  WHERE d.date < ? AND t.done = 0
+    AND t.id NOT IN (
+      SELECT t2.carried_from_id FROM todos t2
+      JOIN days d2 ON t2.day_id = d2.id
+      WHERE d2.date = ? AND t2.carried_from_id IS NOT NULL
+    )
+  ORDER BY d.date DESC, t.sort_order, t.created_at
 `);
 
 function createTodo(dayId, text, sortOrder, carriedFromId) {
@@ -509,7 +518,7 @@ function getTodosByDay(dayId) {
 }
 
 function getOpenTodosFromYesterday(today) {
-  return stmtGetOpenTodosYesterday.all(today);
+  return stmtGetOpenTodosYesterday.all(today, today);
 }
 
 // --- Streak calculation ---
